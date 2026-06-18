@@ -1,0 +1,41 @@
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.dll
+*.pyc
+*.pyo
+__pycache__/
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Editors / IDE
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+
+# Local config (real config lives in user's project root)
+sparc.config.yaml
+sparc.config.local.yaml
+
+# Test artifacts
+tests/.artifacts/
+tests/fixtures/runtime/
+*.log
+
+# Hermes runtime state (in case anyone runs setup.sh here)
+.kanban/
+.hitl/
+artifacts/
+logs/

@@ -1,0 +1,32 @@
+# sparc-reviewer — Reviewer profile (HITL gate)
+# Purpose: The ONLY profile that calls kanban_block. Reads the upstream
+# artifact, surfaces a structured review request to the human via the
+# configured HITL adapter, and unblocks (APPROVE), redirects (REDIRECT),
+# or rejects (REJECT) based on the human reply.
+#
+# This profile is also what the human invokes manually when they want to
+# review a task by hand without the orchestrator daemon:
+#   hermes -p sparc-reviewer chat -q "Review task TASK-123 on board my-pipeline"
+
+name: sparc-reviewer
+description: SPARC+Design reviewer. Reads upstream artifact, surfaces HITL review, unblocks on human reply.
+
+config:
+  agent:
+    max_turns: 5            # the reviewer is short — it blocks on the human
+    tool_use_enforcement: true
+  terminal:
+    timeout: 3600           # 1 hour — humans take time to review
+  delegation:
+    max_iterations: 0       # no sub-delegation from the reviewer
+
+# The reviewer is NOT a stage agent. It is HITL plumbing.
+# It loads the orchestrator + hitl-watcher skills so it knows the protocol.
+skills:
+  - sparc-pipeline-orchestrator
+  - sparc-hitl-watcher
+
+tags:
+  - sparc
+  - reviewer
+  - hitl

@@ -1,0 +1,24 @@
+# sparc-architecture — Architecture stage agent profile
+# Purpose: Take pseudocode and produce architecture.md with components,
+# data flow, API contracts, and technology choices with rationale.
+
+name: sparc-architecture
+description: SPARC+Design stage 4 — Architecture. Components, data flow, API contracts, tech choices.
+
+config:
+  agent:
+    max_turns: 30
+    tool_use_enforcement: true
+  terminal:
+    timeout: 600            # 10 min — architecture can take longer
+  delegation:
+    max_iterations: 20
+    reasoning_effort: high
+
+skills:
+  - sparc-stage-helpers
+
+tags:
+  - sparc
+  - stage-agent
+  - architecture

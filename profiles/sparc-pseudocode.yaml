@@ -1,0 +1,24 @@
+# sparc-pseudocode — Pseudocode stage agent profile
+# Purpose: Take a design and produce pseudocode.md with numbered algorithmic
+# steps, decision points, and data structures.
+
+name: sparc-pseudocode
+description: SPARC+Design stage 3 — Pseudocode. High-level logic without implementation details.
+
+config:
+  agent:
+    max_turns: 30
+    tool_use_enforcement: true
+  terminal:
+    timeout: 300
+  delegation:
+    max_iterations: 10
+    reasoning_effort: medium
+
+skills:
+  - sparc-stage-helpers
+
+tags:
+  - sparc
+  - stage-agent
+  - pseudocode

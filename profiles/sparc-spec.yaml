@@ -1,0 +1,33 @@
+# sparc-spec — Specification stage agent profile
+# Purpose: Take a project goal and produce a specification.md with user
+# stories, acceptance criteria, success metrics, and constraints.
+#
+# Pin model: any model in the user's existing Hermes config. The orchestrator
+# does NOT set a model here; the user picks. Default Hermes profile model wins.
+# This keeps the package model-agnostic per the user's preference.
+
+name: sparc-spec
+description: SPARC+Design stage 1 — Specification. Decomposes goals into user stories, acceptance criteria, success metrics.
+
+# Per-stage circuit breakers (overrides global defaults; loaded by the
+# orchestrator into SPARC_HERMEL_CONFIG when spawning this profile)
+config:
+  agent:
+    max_turns: 30
+    tool_use_enforcement: true
+  terminal:
+    timeout: 300            # 5 min wall clock per task
+  delegation:
+    max_iterations: 10
+    reasoning_effort: medium
+
+# Skills to preload when this profile starts
+skills:
+  - sparc-stage-spec
+  - sparc-stage-helpers
+
+# Tags (used by `hermes profile list` for filtering)
+tags:
+  - sparc
+  - stage-agent
+  - specification

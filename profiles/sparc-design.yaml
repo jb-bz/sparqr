@@ -1,0 +1,25 @@
+# sparc-design — Design stage agent profile (community extension)
+# Purpose: Take a specification and produce a design.md with user flows,
+# visual design, design tokens, and component specs.
+
+name: sparc-design
+description: SPARC+Design stage 2 — Design (community extension). User flows, visual design, design system, mockups.
+
+config:
+  agent:
+    max_turns: 30
+    tool_use_enforcement: true
+  terminal:
+    timeout: 300
+  delegation:
+    max_iterations: 10
+    reasoning_effort: medium
+
+skills:
+  - sparc-stage-design
+  - sparc-stage-helpers
+
+tags:
+  - sparc
+  - stage-agent
+  - design

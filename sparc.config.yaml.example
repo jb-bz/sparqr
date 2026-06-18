@@ -1,0 +1,101 @@
+# Per-project SPARC+Design configuration
+# Copy to ./sparc.config.yaml in your project root and edit.
+
+# The board in Hermes Kanban where this project's tasks live.
+# One board per pipeline is the recommended model.
+# Default: derived from project dir name, e.g. "my-app" -> "sparc-my-app"
+board: sparc-my-app
+
+# Which Hermes profile to use as the orchestrator's reviewer (HITL gate).
+# The reviewer is the only profile that calls kanban_block.
+# Default: sparc-reviewer
+reviewer_profile: sparc-reviewer
+
+# Which HITL adapter to use for human review notifications.
+# Choices: terminal | tui | webui | workspace | official-dashboard
+# The setup script will detect which of {webui, workspace, official-dashboard} are
+# running and offer them as suggestions. "terminal" always works without anything
+# extra. "tui" works as long as you have a Hermes TUI session open in another
+# terminal.
+hitl_adapter: terminal
+
+# Adapter for any of the user's configured chat gateways. See docs/HITL.md.
+# In v0.1.0 the notify channel is the same as the HITL adapter — you get
+# the review request in whatever UI you chose (webui/workspace/dashboard/
+# tui/terminal). A separate `notify:` channel is planned for v0.2.0.
+
+# Per-stage profile overrides. Map stage name -> profile name.
+# Default values shown. Override only what you want to change.
+profiles:
+  spec:         sparc-spec
+  design:       sparc-design
+  pseudocode:   sparc-pseudocode
+  architecture: sparc-architecture
+  refinement:   sparc-refinement
+  completion:   sparc-completion
+  reviewer:     sparc-reviewer
+
+# Stage enable/disable. Default = all 6 enabled.
+# To run pure SPARC (5 stages, no Design), comment out the design line.
+stages:
+  - spec
+  - design
+  - pseudocode
+  - architecture
+  - refinement
+  - completion
+
+# Per-stage circuit breakers. The defaults are reasonable; tighten for
+# design-heavy projects, loosen for long refine/complete runs.
+circuit_breakers:
+  spec:
+    max_turns: 30
+    terminal_timeout_sec: 300
+    delegation_max_iterations: 10
+  design:
+    max_turns: 30
+    terminal_timeout_sec: 300
+    delegation_max_iterations: 10
+  pseudocode:
+    max_turns: 30
+    terminal_timeout_sec: 300
+    delegation_max_iterations: 10
+  architecture:
+    max_turns: 30
+    terminal_timeout_sec: 600
+    delegation_max_iterations: 20
+  refinement:
+    max_turns: 90
+    terminal_timeout_sec: 1800
+    delegation_max_iterations: 50
+  completion:
+    max_turns: 90
+    terminal_timeout_sec: 1800
+    delegation_max_iterations: 50
+
+# HITL gate placement. By default, review at Spec, Architecture, Completion
+# (light-touch). To review at every stage, set all to true.
+# To skip human review entirely (autonomous mode), set all to false.
+hitl_gates:
+  spec:         true
+  design:       false
+  pseudocode:   false
+  architecture: true
+  refinement:   false
+  completion:   true
+
+# Artifact storage. Each stage agent writes its artifact to a file on disk
+# AND appends it to the kanban comment thread. Belt and suspenders.
+artifacts:
+  # Where the stage agents write the full artifact (markdown).
+  # Default: ./docs/sparc/<board>/<stage>/<task-id>.md
+  # The kanban comment thread always carries a copy.
+  disk_dir: ./docs/sparc
+  # Also write the artifact to the kanban comment thread (always true unless
+  # you have a very good reason).
+  also_kanban_comment: true
+
+# Where the orchestrator + HITL watcher write their logs.
+# Default: ~/.hermes/sparc-package/logs/
+# Override only if you want project-local logs (e.g. for CI artifacts).
+log_dir: ~/.hermes/sparc-package/logs

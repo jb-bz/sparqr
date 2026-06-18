@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# bin/sparc — Top-level CLI entry point.
+#
+# Subcommands:
+#   init      Initialize a new SPARC pipeline in the current directory
+#   pipeline  Start, stop, status the orchestrator daemon
+#   stage     Run a single stage agent manually (for debugging)
+#   hitl      Manage HITL reviews (list, approve, reject, redirect)
+#   doctor    Validate the package install
+#   adapters  List HITL/notify adapters
+#   stages    List configured stages
+#   version   Print the package version
+#   help      Print this help
+
+set -euo pipefail
+
+# Resolve package root (this file is at <pkg>/bin/sparc)
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export SPARC_PKG_ROOT
+
+# Source lib
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+# shellcheck source=../lib/kanban.sh
+source "$SPARC_PKG_ROOT/lib/kanban.sh"
+# shellcheck source=../lib/artifacts.sh
+source "$SPARC_PKG_ROOT/lib/artifacts.sh"
+# shellcheck source=../lib/validators.sh
+source "$SPARC_PKG_ROOT/lib/validators.sh"
+# shellcheck source=../lib/adapters/hitl/_registry.sh
+source "$SPARC_PKG_ROOT/lib/adapters/hitl/_registry.sh"
+
+# Version
+SPARC_VERSION="0.1.0"
+export SPARC_VERSION
+
+# Default Hermes binary
+SPARC_HERMES_BIN="${SPARC_HERMES_BIN:-hermes}"
+export SPARC_HERMES_BIN
+
+# Load per-project config if present
+_sparc_load_config() {
+  if [[ -f "./sparc.config.yaml" ]]; then
+    # Naive YAML→env parsing for the keys we care about. Avoids a yq dep.
+    # Use python or yq if installed; else grep.
+    if command -v yq >/dev/null 2>&1; then
+      eval "$(yq -o=shell '. as $cfg | "export SPARC_BOARD=\($cfg.board) SPARC_HITL_ADAPTER=\($cfg.hitl_adapter) SPARC_REVIEWER_PROFILE=\($cfg.reviewer_profile) SPARC_ARTIFACT_DISK_DIR=\($cfg.artifacts.disk_dir) SPARC_ARTIFACT_ALSO_KANBAN=\($cfg.artifacts.also_kanban_comment)"' ./sparc.config.yaml 2>/dev/null)" || true
+    elif command -v python3 >/dev/null 2>&1; then
+      eval "$(python3 -c "
+import yaml, shlex, sys
+try:
+  cfg = yaml.safe_load(open('./sparc.config.yaml'))
+except Exception:
+  sys.exit(0)
+def emit(key, val):
+  if val is None: return
+  print(f'export SPARC_{key}={shlex.quote(str(val))}')
+emit('BOARD', cfg.get('board'))
+emit('HITL_ADAPTER', cfg.get('hitl_adapter'))
+emit('REVIEWER_PROFILE', cfg.get('reviewer_profile'))
+emit('ARTIFACT_DISK_DIR', (cfg.get('artifacts') or {}).get('disk_dir'))
+emit('ARTIFACT_ALSO_KANBAN', (cfg.get('artifacts') or {}).get('also_kanban_comment'))
+" 2>/dev/null)" || true
+    fi
+    # Stage override (colon-separated)
+    if command -v yq >/dev/null 2>&1; then
+      local stages
+      stages=$(yq -r '.stages | join(":")' ./sparc.config.yaml 2>/dev/null || true)
+      [[ -n "$stages" && "$stages" != "null" ]] && export SPARC_STAGE_KEYS="$stages"
+      # HITL gates
+      local gates
+      gates=$(yq -r '.hitl_gates | to_entries | map("\(.key):\(.value)") | join(";")' ./sparc.config.yaml 2>/dev/null || true)
+      [[ -n "$gates" && "$gates" != "null" ]] && export SPARC_HITL_GATES="$gates"
+    fi
+  fi
+  # Defaults
+  : "${SPARC_BOARD:=sparc-$(basename "$(pwd)")}"
+  : "${SPARC_HITL_ADAPTER:=terminal}"
+  : "${SPARC_REVIEWER_PROFILE:=sparc-reviewer}"
+  export SPARC_BOARD SPARC_HITL_ADAPTER SPARC_REVIEWER_PROFILE
+}
+_sparc_load_config
+
+# ── Function definitions (BEFORE the dispatch case) ──────────────────────
+
+sparc_cmd_adapters() {
+  echo "HITL adapters (probe status):"
+  for a in $(hitl_list_adapters); do
+    if hitl_probe "$a" 2>/dev/null; then
+      echo "  ✓ $a"
+    else
+      echo "  · $a  (not available)"
+    fi
+  done
+  echo ""
+  echo "Tip: to add a chat-gateway notify channel (Telegram, Discord, Slack, etc.),"
+  echo "see docs/HITL.md § Adding a chat-gateway notifier. v0.1.0 ships HITL only."
+}
+
+sparc_cmd_stages() {
+  echo "Configured stages (in order):"
+  for s in $(sparc_stage_all_keys); do
+    local name profile skill req
+    name=$(sparc_stage_get "$s" name)
+    profile=$(sparc_stage_get "$s" profile)
+    skill=$(sparc_stage_get "$s" skill)
+    if sparc_stage_requires_review "$s"; then
+      req="[HITL]"
+    else
+      req="      "
+    fi
+    printf "  %d. %-13s %s  profile=%-20s skill=%s\n" \
+      "$(sparc_stage_get "$s" order)" "$name" "$req" "$profile" "$skill"
+  done
+}
+
+sparc_cmd_help() {
+  cat <<'EOF'
+sparc — Hermes SPARC+Design orchestration CLI
+
+Usage: sparc <command> [args]
+
+Commands:
+  init        Initialize a new SPARC pipeline in the current directory
+              (creates sparc.config.yaml and the kanban board)
+  pipeline    Start, stop, or check status of the orchestrator daemon
+              Usage: sparc pipeline {start|stop|status|restart|run-once}
+  stage       Run a single stage agent manually (debug aid)
+              Usage: sparc stage <spec|design|...> <task-id>
+  hitl        Manage HITL reviews from the CLI (without the daemon)
+              Usage: sparc hitl {list|show|approve|reject|redirect} <task>
+  doctor      Validate the package install
+  adapters    List HITL adapters and notify channels
+  stages      List configured stages
+  version     Print the package version
+  help        Print this help
+
+Examples:
+  sparc init "Build a CLI that reverses input lines"
+  sparc pipeline start
+  sparc doctor
+  sparc stages
+
+See docs/ for full documentation.
+EOF
+}
+
+# ── Dispatch (after function definitions) ────────────────────────────────
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  init)        exec "$SPARC_PKG_ROOT/bin/sparc-init" "$@" ;;
+  pipeline)    exec "$SPARC_PKG_ROOT/bin/sparc-pipeline" "$@" ;;
+  stage)       exec "$SPARC_PKG_ROOT/bin/sparc-stage" "$@" ;;
+  hitl)        exec "$SPARC_PKG_ROOT/bin/sparc-hitl-watcher" "$@" ;;
+  doctor)      exec "$SPARC_PKG_ROOT/bin/sparc-doctor" "$@" ;;
+  adapters)    sparc_cmd_adapters "$@" ;;
+  stages)      sparc_cmd_stages "$@" ;;
+  version|-v|--version) echo "sparc $SPARC_VERSION" ;;
+  help|-h|--help)       sparc_cmd_help ;;
+  *) echo "sparc: unknown command: $cmd" >&2; sparc_cmd_help >&2; exit 2 ;;
+esac

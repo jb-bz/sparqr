@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# bin/sparc-hitl-watcher — Manual HITL management from the CLI.
+#
+# Usage: sparc hitl {list|show|approve|reject|redirect} [task-id] [comment]
+#
+# list       — show all tasks currently blocked
+# show       — show details of one blocked task
+# approve    — unblock a task (APPROVE)
+# reject     — archive a task (REJECT)
+# redirect   — move a task back to ready with new guidance
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+# shellcheck source=../lib/kanban.sh
+source "$SPARC_PKG_ROOT/lib/kanban.sh"
+# shellcheck source=../lib/artifacts.sh
+source "$SPARC_PKG_ROOT/lib/artifacts.sh"
+
+# ── Function definitions (BEFORE the dispatch case) ──────────────────────
+
+cmd_list() {
+  echo "→ Blocked tasks on board '$SPARC_BOARD':"
+  local any=false
+  while IFS=$'\t' read -r task_id title; do
+    [[ -z "$task_id" ]] && continue
+    any=true
+    printf "  %s  %s\n" "$task_id" "$title"
+  done < <(sparc_kanban_watch_blocked "$SPARC_BOARD")
+  $any || echo "  (none)"
+}
+
+cmd_show() {
+  local task="$1"
+  [[ -z "$task" ]] && { echo "usage: sparc hitl show <task-id>" >&2; exit 2; }
+  "$SPARC_HERMES_BIN" kanban --board "$SPARC_BOARD" show "$task"
+}
+
+cmd_approve() {
+  local task="${1:-}" comment="${2:-approved from CLI}"
+  [[ -z "$task" ]] && { echo "usage: sparc hitl approve <task-id> [comment]" >&2; exit 2; }
+  sparc_kanban_unblock "$SPARC_BOARD" "$task" "$comment"
+  echo "  ✓ $task approved"
+}
+
+cmd_reject() {
+  local task="${1:-}" comment="${2:-rejected from CLI}"
+  [[ -z "$task" ]] && { echo "usage: sparc hitl reject <task-id> [comment]" >&2; exit 2; }
+  sparc_kanban_set_status "$SPARC_BOARD" "$task" "archived"
+  sparc_kanban_comment "$SPARC_BOARD" "$task" "[REJECTED from CLI] $comment"
+  echo "  ✓ $task rejected and archived"
+}
+
+cmd_redirect() {
+  local task="${1:-}" comment="${2:-redirected from CLI}"
+  [[ -z "$task" ]] && { echo "usage: sparc hitl redirect <task-id> [comment]" >&2; exit 2; }
+  sparc_kanban_set_status "$SPARC_BOARD" "$task" "ready"
+  sparc_kanban_comment "$SPARC_BOARD" "$task" "[REDIRECT from CLI] $comment"
+  echo "  ✓ $task redirected back to ready"
+}
+
+# ── Dispatch (after function definitions) ────────────────────────────────
+cmd="${1:-list}"; shift || true
+
+case "$cmd" in
+  list)      cmd_list ;;
+  show)      cmd_show "${1:-}" ;;
+  approve)   cmd_approve "${1:-}" "${2:-}" ;;
+  reject)    cmd_reject  "${1:-}" "${2:-}" ;;
+  redirect)  cmd_redirect "${1:-}" "${2:-}" ;;
+  *) echo "sparc hitl: unknown command: $cmd" >&2; exit 2 ;;
+esac

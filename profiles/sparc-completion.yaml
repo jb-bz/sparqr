@@ -1,0 +1,24 @@
+# sparc-completion — Completion stage agent profile
+# Purpose: Run the full verification checklist, write completion.md, ensure
+# all success metrics from the spec are met, write user-facing docs.
+
+name: sparc-completion
+description: SPARC+Design stage 6 — Completion. Verification, acceptance criteria check, docs, deployment.
+
+config:
+  agent:
+    max_turns: 90
+    tool_use_enforcement: true
+  terminal:
+    timeout: 1800
+  delegation:
+    max_iterations: 50
+    reasoning_effort: high
+
+skills:
+  - sparc-stage-helpers
+
+tags:
+  - sparc
+  - stage-agent
+  - completion

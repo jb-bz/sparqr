@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# bin/sparc-init — Initialize a new SPARC pipeline in the current directory.
+#
+# - Creates ./sparc.config.yaml (from example) if not present
+# - Creates the Hermes Kanban board
+# - Creates the 6 task-link DAG (one task per stage)
+# - Sets task assignees to the stage profiles
+# - Prints a summary of what was created
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+source "$SPARC_PKG_ROOT/lib/kanban.sh"
+
+GOAL="${1:-}"
+
+echo "→ Initializing SPARC+Design pipeline in: $(pwd)"
+echo ""
+
+# 1. sparc.config.yaml
+if [[ -f "./sparc.config.yaml" ]]; then
+  echo "  ✓ sparc.config.yaml already exists (not overwriting)"
+else
+  cp "$SPARC_PKG_ROOT/sparc.config.yaml.example" ./sparc.config.yaml
+  echo "  ✓ created sparc.config.yaml (edit it to change stage gating, adapter, etc.)"
+fi
+
+# Derive board name from directory
+BOARD="${SPARC_BOARD:-sparc-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')}"
+echo "  • board name: $BOARD"
+
+# 2. Kanban board
+sparc_kanban_board_init "$BOARD" --name "SPARC: $(basename "$(pwd)")" --icon "🎯"
+
+# 3. 6-stage DAG
+echo ""
+echo "→ Creating 6-task DAG (one task per stage)…"
+
+# Use parallel indexed arrays (works in bash 3.2+, the macOS default)
+STAGE_KEYS=()
+TASK_IDS=()
+PREV_ID=""
+FIRST_STAGE=$(sparc_stage_first)
+for STAGE in $(sparc_stage_all_keys); do
+  TITLE="[$(echo "$STAGE" | tr '[:lower:]' '[:upper:]' | sed 's/^./\U&/')]"
+  if [[ -n "$GOAL" && "$STAGE" == "$FIRST_STAGE" ]]; then
+    TITLE="$TITLE $GOAL"
+  elif [[ "$STAGE" == "$FIRST_STAGE" ]]; then
+    TITLE="$TITLE (set the goal in sparc.config.yaml or pass it to sparc init)"
+  fi
+
+  if [[ -n "$PREV_ID" ]]; then
+    NEW_ID=$(sparc_kanban_create_task "$BOARD" "$STAGE" "$TITLE" "$PREV_ID")
+  else
+    NEW_ID=$(sparc_kanban_create_task "$BOARD" "$STAGE" "$TITLE")
+  fi
+  STAGE_KEYS+=("$STAGE")
+  TASK_IDS+=("$NEW_ID")
+  PROFILE=$(sparc_stage_get "$STAGE" profile)
+  echo "  ✓ [$STAGE] task=$NEW_ID  profile=$PROFILE"
+  PREV_ID="$NEW_ID"
+done
+
+# 4. Summary
+echo ""
+echo "════════════════════════════════════════════════════════════════════"
+echo "  SPARC pipeline ready"
+echo "════════════════════════════════════════════════════════════════════"
+echo "  Board    : $BOARD"
+echo "  Tasks    : 6 stages linked parent→child"
+echo "  HITL     : ${SPARC_HITL_ADAPTER:-terminal} (change in sparc.config.yaml)"
+echo "  Next     : sparc pipeline start     (begin the orchestrator daemon)"
+echo "           : sparc pipeline run-once  (single iteration, debug)"
+echo "           : sparc doctor             (validate setup)"
+echo "════════════════════════════════════════════════════════════════════"

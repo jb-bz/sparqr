@@ -1,0 +1,27 @@
+# sparc-refinement — Refinement (TDD) stage agent profile
+# Purpose: Take architecture and produce working code with TDD, security
+# hardening, and a refinement.md recording the test results.
+
+name: sparc-refinement
+description: SPARC+Design stage 5 — Refinement. TDD implementation, debugging, security hardening.
+
+config:
+  agent:
+    max_turns: 90           # refinement is iterative; allow many turns
+    tool_use_enforcement: true
+  terminal:
+    timeout: 1800           # 30 min wall clock
+  delegation:
+    max_iterations: 50
+    reasoning_effort: high
+
+skills:
+  - sparc-stage-helpers
+  - test-driven-development    # recommended companion skill; loaded if installed
+  - systematic-debugging        # recommended companion skill; loaded if installed
+
+tags:
+  - sparc
+  - stage-agent
+  - refinement
+  - tdd

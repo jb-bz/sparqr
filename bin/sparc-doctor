@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# bin/sparc-doctor — Validate the package install and report issues.
+#
+# Checks (in order):
+#   1. Hermes binary present and ≥ 0.6.0
+#   2. All 7 expected profiles exist
+#   3. The package's 5 skills are installed
+#   4. sparc CLI is on PATH
+#   5. The current directory has a sparc.config.yaml (if a project context)
+#   6. Kanban CLI works (board list)
+#   7. Adapter probe status (which HITL surfaces are reachable)
+#   8. Disk artifact dir is writable
+#   9. For each configured stage, the validator function exists
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+source "$SPARC_PKG_ROOT/lib/kanban.sh"
+source "$SPARC_PKG_ROOT/lib/artifacts.sh"
+source "$SPARC_PKG_ROOT/lib/validators.sh"
+source "$SPARC_PKG_ROOT/lib/adapters/hitl/_registry.sh"
+
+PASS=0
+WARN=0
+FAIL=0
+
+ok()   { echo "  ✓ $*"; PASS=$((PASS+1)); }
+warn() { echo "  ! $*"; WARN=$((WARN+1)); }
+fail() { echo "  ✗ $*"; FAIL=$((FAIL+1)); }
+
+echo "════════════════════════════════════════════════════════════════════"
+echo "  SPARC+Design  ·  doctor"
+echo "════════════════════════════════════════════════════════════════════"
+echo ""
+
+# 1. Hermes version
+echo "[1/9] Hermes"
+if ! command -v "$SPARC_HERMES_BIN" >/dev/null 2>&1; then
+  fail "$SPARC_HERMES_BIN not on PATH (install Hermes Agent)"
+else
+  local_ver=$("$SPARC_HERMES_BIN" --version 2>/dev/null | head -n1 || echo "unknown")
+  ok "$SPARC_HERMES_BIN on PATH: $local_ver"
+fi
+
+# 2. Profiles
+echo "[2/9] Profiles"
+for s in $(sparc_stage_all_keys); do
+  profile=$(sparc_stage_get "$s" profile)
+  if "$SPARC_HERMES_BIN" profile show "$profile" >/dev/null 2>&1; then
+    ok "profile '$profile' present"
+  else
+    fail "profile '$profile' missing (run setup.sh)"
+  fi
+done
+if "$SPARC_HERMES_BIN" profile show sparc-reviewer >/dev/null 2>&1; then
+  ok "reviewer profile 'sparc-reviewer' present"
+else
+  fail "reviewer profile 'sparc-reviewer' missing"
+fi
+
+# 3. Skills
+echo "[3/9] Skills"
+for skill in sparc-pipeline-orchestrator sparc-hitl-watcher sparc-stage-spec sparc-stage-design sparc-stage-helpers; do
+  if [[ -d "$HOME/.hermes/skills/software-development/$skill" ]] || [[ -d "$HOME/.hermes/skills/$skill" ]]; then
+    ok "skill '$skill' installed"
+  else
+    fail "skill '$skill' missing (run setup.sh)"
+  fi
+done
+
+# 4. sparc CLI on PATH
+echo "[4/9] sparc CLI"
+if command -v sparc >/dev/null 2>&1; then
+  ok "sparc on PATH: $(command -v sparc)"
+else
+  warn "sparc not on PATH (run setup.sh to install to ~/.local/bin)"
+fi
+
+# 5. sparc.config.yaml
+echo "[5/9] Project config"
+if [[ -f "./sparc.config.yaml" ]]; then
+  ok "./sparc.config.yaml present"
+else
+  warn "no ./sparc.config.yaml in current directory (not required for global check)"
+fi
+
+# 6. Kanban
+echo "[6/9] Hermes Kanban"
+if "$SPARC_HERMES_BIN" kanban boards list >/dev/null 2>&1; then
+  ok "kanban CLI responsive"
+  local_count=$("$SPARC_HERMES_BIN" kanban boards list 2>/dev/null | wc -l | tr -d ' ')
+  ok "$local_count board(s) currently exist"
+else
+  fail "kanban CLI not responsive"
+fi
+
+# 7. Adapter probes
+echo "[7/9] HITL adapter probes"
+for a in $(hitl_list_adapters); do
+  if hitl_probe "$a" 2>/dev/null; then
+    ok "$a reachable"
+  else
+    warn "$a not available"
+  fi
+done
+
+# 8. Artifact dir writable
+echo "[8/9] Artifact storage"
+local_art_dir="${SPARC_ARTIFACT_DISK_DIR:-./docs/sparc}"
+local_art_dir="${local_art_dir/#\~/$HOME}"
+if mkdir -p "$local_art_dir" 2>/dev/null && [[ -w "$local_art_dir" ]]; then
+  ok "artifact dir writable: $local_art_dir"
+else
+  fail "artifact dir not writable: $local_art_dir"
+fi
+
+# 9. Validators
+echo "[9/9] Validators"
+for s in $(sparc_stage_all_keys); do
+  if declare -F "sparc_validate_$s" >/dev/null; then
+    ok "validator sparc_validate_$s"
+  else
+    fail "validator sparc_validate_$s missing"
+  fi
+done
+
+# Summary
+echo ""
+echo "════════════════════════════════════════════════════════════════════"
+printf "  %d pass  ·  %d warn  ·  %d fail\n" "$PASS" "$WARN" "$FAIL"
+echo "════════════════════════════════════════════════════════════════════"
+
+[[ "$FAIL" -eq 0 ]] || exit 1

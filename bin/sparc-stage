@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# bin/sparc-stage — Run a single stage agent manually (debug aid).
+#
+# Usage: sparc stage <spec|design|pseudocode|architecture|refinement|completion> <task-id>
+#
+# This is the same logic the orchestrator daemon uses, but you drive it
+# interactively. Useful when:
+#   - You want to run a single stage without setting up the daemon
+#   - A stage failed and you want to retry it by hand
+#   - You're learning how a stage works
+#
+# The agent is spawned in the FOREGROUND, so you see the entire session.
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+source "$SPARC_PKG_ROOT/lib/kanban.sh"
+source "$SPARC_PKG_ROOT/lib/artifacts.sh"
+
+STAGE="${1:-}"
+TASK_ID="${2:-}"
+
+if [[ -z "$STAGE" || -z "$TASK_ID" ]]; then
+  echo "usage: sparc stage <spec|design|pseudocode|architecture|refinement|completion> <task-id>" >&2
+  exit 2
+fi
+
+PROFILE=$(sparc_stage_get "$STAGE" profile)
+SKILL=$(sparc_stage_get "$STAGE" skill)
+TEMPLATE="$SPARC_PKG_ROOT/templates/$STAGE.md"
+
+cat <<EOF
+→ Running stage agent manually
+  stage:    $STAGE
+  task:     $TASK_ID
+  profile:  $PROFILE
+  skill:    $SKILL
+  template: $TEMPLATE
+  board:    $SPARC_BOARD
+EOF
+
+PROMPT=$(cat <<EOF
+You are running manually (not via the orchestrator daemon). Stage: $STAGE, task $TASK_ID.
+
+1. Read upstream context:   hermes kanban --board $SPARC_BOARD show $TASK_ID
+2. Read the template:       cat $TEMPLATE
+3. Do the work using skill $SKILL
+4. Write the artifact to:   $SPARC_ARTIFACT_DISK_DIR/$SPARC_BOARD/$STAGE/$TASK_ID.md
+5. Publish:                 source $SPARC_PKG_ROOT/lib/artifacts.sh && sparc_artifact_publish $SPARC_BOARD $STAGE $TASK_ID '<artifact>'
+6. Mark done:               source $SPARC_PKG_ROOT/lib/kanban.sh && sparc_kanban_complete $SPARC_BOARD $TASK_ID
+   (or mark blocked if HITL: sparc_kanban_block $SPARC_BOARD $TASK_ID '<summary>')
+EOF
+)
+
+# Use exec to give the agent control of this terminal
+exec "$SPARC_HERMES_BIN" -p "$PROFILE" chat -q "$PROMPT"

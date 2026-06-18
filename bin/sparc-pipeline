@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# bin/sparc-pipeline — Orchestrator daemon: watches the kanban DB, spawns stage agents.
+#
+# Usage: sparc pipeline {start|stop|status|restart|run-once}
+#
+# start     — fork into background, write PID file, run forever
+# stop      — kill the background process
+# status    — show PID and last log lines
+# restart   — stop + start
+# run-once  — single iteration (poll once, process any ready/blocked tasks, exit)
+#
+# The orchestrator's job is small and explicit:
+#   1. Poll Hermes Kanban for tasks in `ready` state
+#   2. For each: spawn the right profile (hermes chat -s <skill>) in the
+#      background; the spawned agent reads the parent's kanban_comment thread,
+#      does its work, writes the artifact, calls kanban_complete, and exits
+#   3. Poll for tasks in `blocked` state
+#   4. For each: surface a HITL review request via the configured adapter,
+#      await the human reply, and unblock or redirect
+#
+# That is the entire pipeline. Everything else (TDD, security, validation)
+# happens INSIDE the stage agent, not here.
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+# shellcheck source=../lib/kanban.sh
+source "$SPARC_PKG_ROOT/lib/kanban.sh"
+# shellcheck source=../lib/artifacts.sh
+source "$SPARC_PKG_ROOT/lib/artifacts.sh"
+# shellcheck source=../lib/validators.sh
+source "$SPARC_PKG_ROOT/lib/validators.sh"
+# shellcheck source=../lib/adapters/hitl/_registry.sh
+source "$SPARC_PKG_ROOT/lib/adapters/hitl/_registry.sh"
+
+LOG_DIR="${SPARC_LOG_DIR:-$HOME/.hermes/sparc-package/logs}"
+mkdir -p "$LOG_DIR"
+PID_FILE="$LOG_DIR/sparc-pipeline.pid"
+LOG_FILE="$LOG_DIR/sparc-pipeline.log"
+
+# ── Function definitions (BEFORE the dispatch case) ──────────────────────
+# Bash does NOT hoist function definitions; the case statement that calls
+# them must come AFTER the definitions. That is why this whole block
+# precedes the case at the bottom of the file.
+
+cmd_start() {
+  if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    echo "  → sparc-pipeline already running (PID $(cat "$PID_FILE"))" >&2
+    return 0
+  fi
+  echo "  → starting sparc-pipeline (logs: $LOG_FILE)" >&2
+  nohup "$0" run-loop >> "$LOG_FILE" 2>&1 &
+  echo $! > "$PID_FILE"
+  sleep 0.5
+  echo "  ✓ started (PID $(cat "$PID_FILE"))" >&2
+}
+
+cmd_stop() {
+  if [[ ! -f "$PID_FILE" ]]; then
+    echo "  → sparc-pipeline not running" >&2
+    return 0
+  fi
+  local pid; pid=$(cat "$PID_FILE")
+  if kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    sleep 0.3
+    kill -9 "$pid" 2>/dev/null || true
+  fi
+  rm -f "$PID_FILE"
+  echo "  ✓ stopped" >&2
+}
+
+cmd_status() {
+  if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    echo "  ✓ running (PID $(cat "$PID_FILE"))"
+    echo "  ── last 10 log lines ──"
+    tail -n 10 "$LOG_FILE" 2>/dev/null | sed 's/^/    /'
+  else
+    echo "  · not running"
+  fi
+}
+
+cmd_restart() {
+  cmd_stop
+  sleep 1
+  cmd_start
+}
+
+cmd_run_once() {
+  echo "  → running one iteration…" >&2
+  once_tick
+}
+
+# The actual orchestrator loop. Forked into background by cmd_start.
+run_loop() {
+  trap 'echo "[$(date -u +%H:%M:%S)] sparc-pipeline stopping"; exit 0' INT TERM
+  echo "[$(date -u +%H:%M:%S)] sparc-pipeline started (board=$SPARC_BOARD, hitl=$SPARC_HITL_ADAPTER)"
+  while true; do
+    once_tick || echo "[$(date -u +%H:%M:%S)] tick error: $?"
+    sleep 3
+  done
+}
+
+# Alias used when forking via `nohup "$0" run-loop`
+run-loop() { run_loop; }
+
+# once_tick — single iteration of the orchestrator loop.
+# 1. Process any blocked tasks (HITL review)
+# 2. Process any ready tasks (spawn the stage agent)
+once_tick() {
+  # ── 1. HITL: process blocked tasks ─────────────────────────────────────
+  while IFS=$'\t' read -r task_id title; do
+    [[ -z "$task_id" ]] && continue
+    local stage
+    stage=$(echo "$title" | sed -nE 's/^\[([A-Za-z]+)\].*/\L\1/p')
+    [[ -z "$stage" ]] && stage="unknown"
+
+    local artifact=""
+    artifact=$(sparc_artifact_latest "$SPARC_BOARD" "$stage" 2>/dev/null || true)
+    [[ -z "$artifact" ]] && artifact="./docs/sparc/$SPARC_BOARD/$stage/$task_id.md"
+
+    echo "[$(date -u +%H:%M:%S)] HITL review request: task=$task_id stage=$stage artifact=$artifact"
+
+    # Surface the review request via the configured adapter
+    hitl_notify "$SPARC_HITL_ADAPTER" "$SPARC_BOARD" "$task_id" "$stage" "$artifact"
+
+    # Block until human replies
+    local reply
+    reply=$(hitl_await_reply "$SPARC_HITL_ADAPTER" "$SPARC_BOARD" "$task_id")
+
+    case "$reply" in
+      APPROVE*)
+        sparc_kanban_unblock "$SPARC_BOARD" "$task_id" "approved: $reply"
+        echo "[$(date -u +%H:%M:%S)] task=$task_id APPROVED — promoting next stage"
+        ;;
+      REJECT*)
+        sparc_kanban_set_status "$SPARC_BOARD" "$task_id" "archived"
+        sparc_kanban_comment "$SPARC_BOARD" "$task_id" "[REJECTED] $reply"
+        echo "[$(date -u +%H:%M:%S)] task=$task_id REJECTED — pipeline halted at this stage"
+        ;;
+      REDIRECT*|*)
+        sparc_kanban_comment "$SPARC_BOARD" "$task_id" "[REDIRECT] $reply"
+        sparc_kanban_set_status "$SPARC_BOARD" "$task_id" "ready"
+        echo "[$(date -u +%H:%M:%S)] task=$task_id REDIRECTED — will rerun with new guidance"
+        ;;
+    esac
+  done < <(sparc_kanban_watch_blocked "$SPARC_BOARD")
+
+  # ── 2. Spawn: process ready tasks ──────────────────────────────────────
+  while IFS=$'\t' read -r task_id title; do
+    [[ -z "$task_id" ]] && continue
+    local stage
+    stage=$(echo "$title" | sed -nE 's/^\[([A-Za-z]+)\].*/\L\1/p')
+    [[ -z "$stage" ]] && continue
+    local profile skill
+    profile=$(sparc_stage_get "$stage" profile)
+    skill=$(sparc_stage_get "$stage" skill)
+
+    echo "[$(date -u +%H:%M:%S)] spawning stage agent: task=$task_id stage=$stage profile=$profile skill=$skill"
+
+    sparc_kanban_set_status "$SPARC_BOARD" "$task_id" "running" || true
+
+    local prompt
+    prompt="You are the SPARC+Design stage agent for stage: ${stage}
+Task ID: ${task_id}
+Board:   ${SPARC_BOARD}
+Profile: ${profile}
+
+Steps:
+  1. Read the parent task comment thread to see upstream context:
+     hermes kanban --board ${SPARC_BOARD} show ${task_id}
+  2. Read the most recent upstream artifact:
+     cat \$(sparc_artifact_latest ${SPARC_BOARD} <upstream-stage> 2>/dev/null) || true
+  3. Do the work for this stage. Use the skill: ${skill}
+  4. Write your artifact to:
+     ${SPARC_ARTIFACT_DISK_DIR}/${SPARC_BOARD}/${stage}/${task_id}.md
+     (use the template at: ${SPARC_PKG_ROOT}/templates/${stage}.md)
+  5. Publish via:
+     source ${SPARC_PKG_ROOT}/lib/artifacts.sh
+     sparc_artifact_publish ${SPARC_BOARD} ${stage} ${task_id} '<your artifact markdown>'
+  6. If this stage requires HITL review, mark blocked:
+     source ${SPARC_PKG_ROOT}/lib/kanban.sh
+     sparc_kanban_block ${SPARC_BOARD} ${task_id} '<one-line summary of what to review>'
+     (The orchestrator daemon will surface the review to the human.)
+  7. If no review required, mark complete:
+     sparc_kanban_complete ${SPARC_BOARD} ${task_id}
+"
+
+    nohup "$SPARC_HERMES_BIN" -p "$profile" chat -q "$prompt" \
+      >> "$LOG_DIR/sparc-stage-$stage-$task_id.log" 2>&1 &
+    echo $! > "$LOG_DIR/sparc-stage-$stage-$task_id.pid"
+  done < <(sparc_kanban_watch_ready "$SPARC_BOARD")
+}
+
+# ── Dispatch (after all function definitions) ──────────────────────────
+cmd="${1:-status}"; shift || true
+
+case "$cmd" in
+  start)     cmd_start "$@" ;;
+  stop)      cmd_stop "$@" ;;
+  status)    cmd_status "$@" ;;
+  restart)   cmd_restart "$@" ;;
+  run-once)  cmd_run_once "$@" ;;
+  run-loop)  run_loop ;;
+  *) echo "sparc pipeline: unknown command: $cmd" >&2; exit 2 ;;
+esac
