@@ -10,6 +10,7 @@
 - **How does it work?** See [ARCHITECTURE.md](ARCHITECTURE.md).
 - **How do I install?** See [INSTALL.md](INSTALL.md).
 - **How do I add a new stage or HITL surface?** [ADDING-STAGES.md](ADDING-STAGES.md) · [HITL.md](HITL.md).
+- **What's the roadmap?** See [ROADMAP.md](../ROADMAP.md) for the plan, and [docs/retrospectives/](retrospectives/) for what we actually shipped.
 - **Something broke?** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - **Spotted a bug?** [File an issue](https://github.com/jb-bz/sparqr/issues/new?template=bug_report.md).
 

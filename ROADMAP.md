@@ -14,6 +14,8 @@
 - **Part 3 — Roadmap.** Three versions out (v0.2, v0.3, v1.0) with explicit priorities, "skip" candidates, and acceptance criteria. Each story is sized in story points.
 - **Part 4 — Specific other improvements.** Smaller ideas worth picking up in v0.2.0 alongside the headline features.
 - **Part 5 — What I'm explicitly NOT recommending**, with reasons.
+- **Part 6 — Open questions** for the maintainer.
+- **Part 7 — Retrospectives.** Past releases with actual point values vs. estimates. Updated as releases ship.
 
 The point of this document isn't to commit to every item. It's to give you a clear map of the design space so you can make trade-off decisions, and to capture the reasoning while it's fresh.
 
@@ -40,6 +42,8 @@ A few rules of thumb for staying honest:
 - **Acceptance criteria, not time.** Each story has acceptance criteria. If you can't write them, you haven't defined the story well enough.
 
 **Release budget:** each release section in Part 3 lists the stories and their total point sum. The implicit budget is "what fits in one development cycle" — defined by your available attention, not by a calendar. If v0.2.0 ends up at 100 points, you can either (a) ship less of v0.2.0, (b) split v0.2.0 into v0.2.0 + v0.2.5, or (c) find a way to reduce the per-point cost (more efficient tools, better abstractions). You cannot "add more weeks."
+
+**Calibration:** story points are only useful if we track actuals. After every release, we write a retrospective (in `docs/retrospectives/v0.X.0.md`, see [Retrospectives](#retrospectives) below) with the actual point values per story. The v0.1.0 retrospective is the first calibration data point. From v0.2.0 onwards, every release's point sum gets compared to the actual we achieved, and the deltas feed back into better estimates for the next release.
 
 ---
 
@@ -367,4 +371,35 @@ Things I'd want your input on before finalizing:
 
 ---
 
-*End of roadmap document. Last review: 2026-06-19. Next review: after v0.2.0 release.*
+# Part 7 — Retrospectives
+
+**What this section is:** every release gets a retrospective when it ships. The retrospective captures the *actual* point values per story (vs. the estimates in Part 3), the things that surprised us, and what we'd do differently next release. This is the only place in the package where the numbers are *ground truth* — Part 3 is forward-looking estimates, this section is backward-looking facts.
+
+**How it works:**
+
+- Each release's full retrospective lives in `docs/retrospectives/v0.X.0.md`
+- A one-paragraph summary of each retrospective lives here in the ROADMAP, in the order they were released (oldest first)
+- The retrospective is **auto-generated** from git history, conversation context, and the point estimates in Part 3 — see `docs/retrospectives/RETROSPECTIVE-TEMPLATE.md` for the format
+- The "what surprised us" and "what we'd do differently" sections are drafted by me and edited by you, because those need your perspective
+- Velocity = story points per release. We compare release-to-release ratios to recalibrate future estimates
+
+**Why this matters:** without actuals, story points become fiction. The v0.1.0 release was estimated retroactively at ~55 pts. v0.2.0 is planned at 46 pts. If v0.2.0 ships at, say, 60 pts, that's our first real velocity data point, and v0.3.0's 28-pt plan gets re-estimated against it. After 3-4 releases, the estimates will be properly calibrated to this project.
+
+---
+
+## v0.1.0 — shipped 2026-06-18
+
+- **Estimated pts:** n/a (release predates the story-point scale; see retrospective for retroactive estimate)
+- **Actual pts (retroactive):** ~55 pts
+- **Velocity ratio:** n/a (first release)
+- **Stories planned:** not formally tracked (pre-scale)
+- **Stories shipped:** all of the v0.1.0 scope, plus BSM integration, GitHub push via BSM, ROADMAP.md as a follow-up
+- **Stories deferred:** notify channel (per user feedback — "user preference, not a Telegram channel hardcoded")
+- **What surprised us:** BSM was harder than expected (token format debugging); the function-hoisting bug in bash was embarrassing; docs are roughly the same effort as the orchestrator
+- **Full retrospective:** [docs/retrospectives/v0.1.0.md](docs/retrospectives/v0.1.0.md)
+
+**Implication for v0.2.0:** our v0.1.0 baseline is ~55 pts per release. v0.2.0 is planned at 46 pts, which is *slightly smaller* than v0.1.0. That's a real signal: v0.2.0 is the first release where we can validate whether our 46-pt estimate is honest. If v0.2.0 ships at 60+ pts, our point scale is under-calibrated and v0.3.0's 28-pt plan is probably wishful. If v0.2.0 ships at 46 pts, the scale is right and we can trust future estimates.
+
+---
+
+*End of roadmap document. Last review: 2026-06-19. Next review: when v0.2.0 ships, with the v0.2.0 retrospective appended.*
