@@ -1,0 +1,90 @@
+name: CI
+
+# Trigger on every push to main (catches direct commits and merge commits)
+# and on every PR to main (catches proposed changes before they land).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch when a new commit lands.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── shellcheck: static analysis on every .sh file ─────────────────────
+  # The package is bash, so shellcheck catches a real class of bugs
+  # (unquoted vars, missing error checks, etc.) at zero cost.
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck
+        # SC2086: double quote to prevent globbing (selective — we want
+        #         string-splitting in some places)
+        # SC2155: declare and assign separately (we often return from $())
+        # These are the two we routinely suppress; everything else is real.
+        run: |
+          find . -type f -name "*.sh" -not -path "./.git/*" -print0 | xargs -0 \
+            shellcheck \
+              --exclude=SC2086,SC2155,SC1091,SC2317 \
+              --severity=warning
+        # SC1091 = source not found (we use indirect sourcing in tests)
+        # SC2317 = unreachable command (false positive on ${VAR:?} patterns)
+
+  # ── test: the full unit + integration test suite ─────────────────────
+  # Runs every test_*.sh script. Each script is self-contained and exits
+  # non-zero on failure, which fails the job.
+  test:
+    name: Unit + integration tests
+    runs-on: ubuntu-latest
+    needs: shellcheck   # don't run tests if shellcheck already failed
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bash sqlite3 curl jq git
+
+      - name: Run all test suites
+        run: |
+          set -euo pipefail
+          for t in tests/test_*.sh; do
+            echo "━━━ $t ━━━"
+            bash "$t"
+          done
+
+      - name: Show test summary
+        if: always()
+        run: |
+          echo "Test results above. Each suite prints its own pass/fail summary."
+
+  # ── preflight: smoke test that the package's own preflight works ──────
+  # The preflight is what users run before installing. If CI shows the
+  # preflight is broken in our own env, the test suite can't catch
+  # that (the suite is hermes-aware but the preflight checks the OS).
+  preflight:
+    name: Preflight check (smoke test)
+    runs-on: ubuntu-latest
+    needs: shellcheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run prerequisites check
+        run: |
+          # On a fresh ubuntu-latest runner, bash is 5.x, sqlite3/curl/jq/git
+          # are installed by setup above, and yq may or may not be.
+          # The preflight should PASS (return 0) when the optional warnings
+          # are the only issues.
+          # We source lib/preflight.sh directly and call sparc_preflight_check
+          # to test it in isolation (no hermes install in CI).
+          bash -c 'source lib/preflight.sh && sparc_preflight_check'

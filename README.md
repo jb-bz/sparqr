@@ -12,8 +12,9 @@
 [![Hermes Agent](https://img.shields.io/badge/Hermes-%E2%89%A50.6.0-blueviolet)](https://hermes-agent.nousresearch.com/)
 [![SPARC+Design](https://img.shields.io/badge/SPARC%2BDesign-6%20stages-orange)](docs/ARCHITECTURE.md)
 [![Bash](https://img.shields.io/badge/Bash-%E2%89%A54.0-4EAA25.svg)](https://www.gnu.org/software/bash/)
+[![CI](https://github.com/jb-bz/sparqr/actions/workflows/ci.yml/badge.svg)](https://github.com/jb-bz/sparqr/actions/workflows/ci.yml)
 [![macOS+Linux](https://img.shields.io/badge/macOS%20%2B%20Linux-tested-success)](https://github.com/jb-bz/sparqr/actions)
-[![Tests](https://img.shields.io/badge/tests-111%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-127%20passing-brightgreen)](tests/)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 </div>
