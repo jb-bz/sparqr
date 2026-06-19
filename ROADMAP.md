@@ -181,7 +181,7 @@ Each release below lists its stories as a numbered list with story points. At th
 
 **Stories:**
 
-1. **Event-based poller** (gap 1.1) — **8 pts**. SQLite trigger on kanban + sidecar table. 250ms polling on the sidecar instead of 3s on the whole kanban. Backward-compatible: if the trigger doesn't fire (older Hermes), fall back to current 3s polling.
+1. **Event-driven polling** (gap 1.1) — **2 pts** (revised from 8 pts after design spike). Reduce poll interval from 3s to 250ms (configurable via `SPARC_POLL_INTERVAL_SEC` env var). Hermes Kanban already maintains a `task_events` SQLite table (verified during spike on 2026-06-19) that records every state change with a kind, payload, and timestamp — the trigger + sidecar design from the original 8-pt estimate is unnecessary because Hermes is already giving us the events. Bonus: `sparc events <task-id>` reads `task_events` directly for "what just happened?" debugging.
 2. **Kanban CLI compat shim** (gap 1.2) — **8 pts**. Try modern verbs, fall back to legacy. Log warnings. Catches Hermes CLI renames automatically. Includes unit tests for each verb-mapping.
 3. **Stale-task reaper** (gap 1.9) — **5 pts**. Tasks in `running` for >5 ticks with dead PID → re-queue as `ready` with a `[REAPED]` comment. Per-task `failure_limit` to bound retries (default 2).
 4. **Reviewer checklist skill** (gap 1.4) — **5 pts**. `sparc-reviewer-checklist` skill that teaches the reviewer agent to verify artifact against spec's acceptance criteria, post structured review, then `kanban_block` with the review as reason.
@@ -201,7 +201,7 @@ Each release below lists its stories as a numbered list with story points. At th
 8. **Prerequisites check** (gap 1.7) — **3 pts**. `sparc-doctor --pre-install` (or just better doctor) detects missing Hermes / BSM / git / jq / sqlite before the user runs `setup.sh`.
 9. **Single-user story documented** (gap 1.10) — **1 pt**. One line in README: "⚠️ Single-user. Multi-user / teams is a v1.0 feature."
 
-**Total: 46 pts.** That's a meaningful release — substantial but bounded. If it feels like too much, the natural split is "v0.2.0 = stability (stories 1, 2, 3, 4, 7) = 29 pts" and "v0.2.5 = features (stories 5, 6, 8, 9) = 17 pts." Or v0.2.0 ships stories 1-5 (29 pts) and v0.2.5 ships 6-9 (15 pts). I won't make that call — you know your attention budget better than I do.
+**Total: 40 pts (revised from 46 pts after the design spike showed story 1 is 2 pts, not 8).** That's a meaningful release — substantial but bounded. If it feels like too much, the natural split is "v0.2.0 = stability (stories 1, 2, 3, 4, 7) = 23 pts" and "v0.2.5 = features (stories 5, 6, 8, 9) = 17 pts." Or v0.2.0 ships stories 1-5 (23 pts) and v0.2.5 ships 6-9 (15 pts). I won't make that call — you know your attention budget better than I do.
 
 **Acceptance criteria for v0.2.0:**
 

@@ -133,3 +133,32 @@ sparc_kanban_watch_blocked() {
   "$SPARC_HERMES_BIN" kanban --board "$board" list --status blocked 2>/dev/null \
     | awk -F'\t' 'NF>=3 {print $1 "\t" $3}'
 }
+
+# sparc_kanban_event_log <board> <task_id> [--limit N]
+# Prints the recent event log for a task, oldest first.
+# Each line: <id>\t<created_at_human>\t<kind>\t<payload_excerpt>
+# Useful for "what just happened to this task?" debugging.
+sparc_kanban_event_log() {
+  local board="$1" task_id="$2"
+  local limit=50
+  [[ "${3:-}" == "--limit" && -n "${4:-}" ]] && limit="$4"
+
+  # Find the board's DB path via the CLI
+  local db_path
+  db_path=$("$SPARC_HERMES_BIN" kanban boards list 2>/dev/null \
+    | awk -v b="$board" '$1 == b { print $2; exit }')
+  # Fallback: use the standard layout
+  if [[ -z "$db_path" || ! -f "$db_path" ]]; then
+    db_path="$HOME/.hermes/kanban/boards/$board/kanban.db"
+  fi
+  [[ -f "$db_path" ]] || { echo "sparc_kanban_event_log: db not found for board '$board'" >&2; return 1; }
+
+  # Read events for the task. We use sqlite3 directly because the events table
+  # is internal to Hermes (not exposed via the kanban CLI verb surface).
+  sqlite3 "$db_path" -header -column \
+    "SELECT id, datetime(created_at, 'unixepoch') AS at, kind, substr(payload, 1, 80) AS payload
+     FROM task_events
+     WHERE task_id = '$task_id'
+     ORDER BY id DESC
+     LIMIT $limit;" 2>/dev/null
+}

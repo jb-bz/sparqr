@@ -7,7 +7,7 @@
 #   stage     Run a single stage agent manually (for debugging)
 #   hitl      Manage HITL reviews (list, approve, reject, redirect)
 #   doctor    Validate the package install
-#   adapters  List HITL/notify adapters
+#   events    Print the event log for a task
 #   stages    List configured stages
 #   version   Print the package version
 #   help      Print this help
@@ -114,6 +114,33 @@ sparc_cmd_stages() {
   done
 }
 
+sparc_cmd_events() {
+  # sparc events <task-id> [--limit N] [--board board-name]
+  # Defaults: limit=50, board=current SPARC_BOARD
+  local task_id="" limit=50 board_override=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --limit) limit="$2"; shift 2 ;;
+      --board) board_override="$2"; shift 2 ;;
+      --help|-h)
+        echo "Usage: sparc events <task-id> [--limit N] [--board board-name]"
+        echo ""
+        echo "Prints the recent event log for a task: id, time, kind, payload excerpt."
+        echo "Useful for understanding what just happened to a task in the pipeline."
+        return 0
+        ;;
+      -*) echo "sparc events: unknown flag $1" >&2; return 2 ;;
+      *)  task_id="$1"; shift ;;
+    esac
+  done
+  if [[ -z "$task_id" ]]; then
+    echo "Usage: sparc events <task-id> [--limit N] [--board board-name]" >&2
+    return 2
+  fi
+  local board="${board_override:-$SPARC_BOARD}"
+  sparc_kanban_event_log "$board" "$task_id" --limit "$limit"
+}
+
 sparc_cmd_help() {
   cat <<'EOF'
 sparc — Hermes SPARC+Design orchestration CLI
@@ -155,6 +182,7 @@ case "$cmd" in
   stage)       exec "$SPARC_PKG_ROOT/bin/sparc-stage" "$@" ;;
   hitl)        exec "$SPARC_PKG_ROOT/bin/sparc-hitl-watcher" "$@" ;;
   doctor)      exec "$SPARC_PKG_ROOT/bin/sparc-doctor" "$@" ;;
+  events)      sparc_cmd_events "$@" ;;
   adapters)    sparc_cmd_adapters "$@" ;;
   stages)      sparc_cmd_stages "$@" ;;
   version|-v|--version) echo "sparc $SPARC_VERSION" ;;

@@ -96,10 +96,14 @@ cmd_run_once() {
 # The actual orchestrator loop. Forked into background by cmd_start.
 run_loop() {
   trap 'echo "[$(date -u +%H:%M:%S)] sparc-pipeline stopping"; exit 0' INT TERM
-  echo "[$(date -u +%H:%M:%S)] sparc-pipeline started (board=$SPARC_BOARD, hitl=$SPARC_HITL_ADAPTER)"
+  # Poll interval: 250ms by default. Configurable via SPARC_POLL_INTERVAL_SEC
+  # (fractional seconds allowed, e.g. "0.25"). Set to "1" or higher for power-saving
+  # on a long-running pipeline. Going below 0.1s is not recommended.
+  local poll_interval="${SPARC_POLL_INTERVAL_SEC:-0.25}"
+  echo "[$(date -u +%H:%M:%S)] sparc-pipeline started (board=$SPARC_BOARD, hitl=$SPARC_HITL_ADAPTER, poll=${poll_interval}s)"
   while true; do
     once_tick || echo "[$(date -u +%H:%M:%S)] tick error: $?"
-    sleep 3
+    sleep "$poll_interval"
   done
 }
 

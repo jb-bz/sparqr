@@ -38,7 +38,8 @@ hdr "kanban wrapper functions exist"
 for fn in sparc_kanban_board_init sparc_kanban_create_task sparc_kanban_link \
           sparc_kanban_set_status sparc_kanban_comment sparc_kanban_block \
           sparc_kanban_unblock sparc_kanban_complete \
-          sparc_kanban_watch_ready sparc_kanban_watch_blocked; do
+          sparc_kanban_watch_ready sparc_kanban_watch_blocked \
+          sparc_kanban_event_log; do
   if declare -F "$fn" >/dev/null; then
     ok "$fn defined"
   else
