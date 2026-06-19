@@ -1,6 +1,20 @@
-# Installing the SPARC+Design Package
+# Installing sparqr
 
-This guide walks through importing the package into a running Hermes install. If anything is unclear, file an issue.
+This guide walks through importing the package into a running Hermes install. If anything is unclear, [file an issue](https://github.com/jb-bz/sparqr/issues).
+
+**Navigation:** [Prerequisites](#prerequisites) · [Quick install](#quick-install) · [What setup.sh does](#what-setupsh-does-in-order) · [What setup.sh does NOT do](#what-setupsh-does-not-do) · [Per-project setup](#per-project-setup) · [Verifying](#verifying-the-install) · [Uninstalling](#uninstalling) · [Troubleshooting](#troubleshooting)
+
+---
+
+## Quick links
+
+- **What is sparqr?** See the [README](../README.md) for the elevator pitch.
+- **How does it work?** See [ARCHITECTURE.md](ARCHITECTURE.md).
+- **I just want to use it** → see [Per-project setup](#per-project-setup).
+- **Something broke** → [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+- **I want to extend it** → [HITL.md](HITL.md) or [ADDING-STAGES.md](ADDING-STAGES.md).
+
+---
 
 ## Prerequisites
 
@@ -11,17 +25,30 @@ This guide walks through importing the package into a running Hermes install. If
 - **jq** — `brew install jq` (macOS) or `apt install jq` (Linux). Required for HITL adapter JSON.
 - Optional: **yq** — `brew install yq` / `apt install yq` — used to parse `sparc.config.yaml` natively. Without it, setup.sh falls back to a python3 parser.
 
-## Quick install (1 minute)
+---
+
+## Quick install
 
 ```bash
-git clone https://github.com/<your-org>/hermes-sparc-package.git
-cd hermes-sparc-package
-./setup.sh              # interactive (4 questions)
-# or
-./setup.sh --yes        # accept all defaults
+# 1. Clone
+git clone https://github.com/jb-bz/sparqr.git
+cd sparqr
+
+# 2. Run the importer (asks 1 question, ~2 minutes)
+./setup.sh
+
+# 3. Verify
+sparc doctor
+
+# 4. Try the example end-to-end
+cd examples/hello-sparc
+sparc init "Build a CLI that reverses input lines"
+sparc pipeline start
 ```
 
 That's it. `setup.sh` is idempotent — re-running it is safe and will update, not duplicate.
+
+---
 
 ## What setup.sh does (in order)
 
@@ -30,19 +57,22 @@ That's it. `setup.sh` is idempotent — re-running it is safe and will update, n
 3. **Skills** — installs 5 skills into `~/.hermes/skills/software-development/`
 4. **CLI** — symlinks `sparc` to `~/.local/bin/sparc` (or `$PREFIX/bin/sparc` if `PREFIX` is set)
 5. **HITL probe** — checks which HITL surfaces are reachable and asks you to pick one
-6. **Telegram** — asks if you want to enable the Telegram notifier (only if `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are already in `~/.hermes/.env`)
-7. **Project config** — creates `./sparc.config.yaml` in the current directory with your choices patched in
-8. **Doctor** — runs `sparc doctor` so you can see the green lights
+6. **Project config** — creates `./sparc.config.yaml` in the current directory with your choices patched in
+7. **Doctor** — runs `sparc doctor` so you can see the green lights
+
+---
 
 ## What setup.sh does NOT do
 
 - ❌ Touch `~/.hermes/config.yaml` (your model, providers, API keys — all untouched)
-- ❌ Touch `~/.hermes/.env` (your secrets — untouched; only READ to check for Telegram creds)
+- ❌ Touch `~/.hermes/.env` (your secrets — only READ for the BSM bootstrap)
 - ❌ Touch `~/.hermes/memory/` (your agent memory — untouched)
 - ❌ Touch any other profiles or skills
 - ❌ Touch any files outside the package root, `~/.hermes/`, and your `PATH` (`~/.local/bin/`)
 - ❌ Install or update Hermes itself (you do that)
 - ❌ Install Python packages (you do that)
+
+---
 
 ## Per-project setup
 
@@ -52,7 +82,7 @@ You only need to run `setup.sh` once per **machine**. After that, each **project
 
 ```bash
 cd ~/projects/my-cool-app
-cp /path/to/hermes-sparc-package/sparc.config.yaml.example ./sparc.config.yaml
+cp /path/to/sparqr/sparc.config.yaml.example ./sparc.config.yaml
 # edit it
 sparc init "Build the cool app"
 sparc pipeline start
@@ -64,12 +94,14 @@ Drop this in your shell rc:
 
 ```bash
 sparc-new() {
-  cp /path/to/hermes-sparc-package/sparc.config.yaml.example ./sparc.config.yaml
+  cp /path/to/sparqr/sparc.config.yaml.example ./sparc.config.yaml
   sparc init "$1"
 }
 ```
 
 Then: `sparc-new "Build the cool app"`.
+
+---
 
 ## Verifying the install
 
@@ -80,9 +112,10 @@ sparc doctor
 You should see all checks passing or warning. Common warnings and how to fix them:
 
 - `sparc not on PATH` → add `export PATH="$HOME/.local/bin:$PATH"` to your shell rc
-- `Telegram not configured` → expected, unless you have a Telegram bot
 - `webui/workspace not detected` → expected, unless you have those UIs running
 - `sparc.config.yaml not in current dir` → expected if you're not in a project; only a warning
+
+---
 
 ## Uninstalling
 
@@ -109,6 +142,8 @@ rm -rf ~/.hermes/sparc-package/logs ~/.hermes/sparc-package/hitl
 ```
 
 Your `~/.hermes/config.yaml`, `.env`, and memory are untouched. Your other skills and profiles are untouched.
+
+---
 
 ## Troubleshooting
 

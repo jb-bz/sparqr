@@ -1,5 +1,20 @@
 # FAQ
 
+**Navigation:** [What is SPARC?](#what-is-sparc) · [Design phase](#why-design-isnt-pure-sparc) · [Profiles & skills](#do-i-need-all-6-profiles) · [Kanban](#can-i-run-this-without-hermes-kanban) · [External PM tools](#can-i-use-planeso--linear--jira-instead-of-hermes-kanban) · [Other agents](#can-i-use-this-with-claude-code--cursor--aider) · [Relationship to other projects](#is-this-the-same-as-ruvnetruflo) · [Comparison](#how-does-this-compare-to-autogen--crewai--langgraph) · [Memory & parallelism](#do-the-stage-agents-share-memory) · [Implementation](#why-bash-not-python) · [License](#how-is-this-licensed) · [Contributing](#how-do-i-contribute) · [Roadmap](#whats-the-roadmap) · [Help](#where-do-i-ask-a-question)
+
+---
+
+## Quick links
+
+- **What is sparqr?** See the [README](../README.md).
+- **How does it work?** See [ARCHITECTURE.md](ARCHITECTURE.md).
+- **How do I install?** See [INSTALL.md](INSTALL.md).
+- **How do I add a new stage or HITL surface?** [ADDING-STAGES.md](ADDING-STAGES.md) · [HITL.md](HITL.md).
+- **Something broke?** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+- **Spotted a bug?** [File an issue](https://github.com/jb-bz/sparqr/issues/new?template=bug_report.md).
+
+---
+
 ## What is SPARC?
 
 [SPARC](https://github.com/ruvnet/sparc) is a methodology for AI-assisted software development with 5 phases: **S**pecification, **P**seudocode, **A**rchitecture, **R**efinement, **C**ompletion. Each phase has clear deliverables and acceptance criteria. This package extends it with a Design phase (between Spec and Pseudocode), making it 6 stages.

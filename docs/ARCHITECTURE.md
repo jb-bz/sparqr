@@ -2,51 +2,111 @@
 
 This document explains how the pieces of the SPARC+Design package fit together. Read this if you want to understand the design or contribute changes.
 
+**Navigation:** [Quick start](#quick-start) · [30,000-foot view](#the-30000-foot-view) · [System architecture](#system-architecture) · [Data flow](#data-flow-for-a-single-stage-transition) · [Stages](#the-6-stages) · [Profiles](#the-7-profiles) · [Durable state](#the-durable-state) · [HITL adapter contract](#the-hitl-adapter-contract) · [Orchestrator loop](#the-orchestrators-loop-in-detail) · [Design tradeoffs](#what-this-design-optimizes-for) · [Reference](#reference)
+
+---
+
+## Quick start
+
+- **What is sparqr?** A small package that turns [Hermes Agent](https://hermes-agent.nousresearch.com/) into a 6-stage autonomous software pipeline with pluggable human-in-the-loop review gates. See the [README](../README.md) for the elevator pitch; this doc is the technical deep-dive.
+- **I just want to install it** → see [INSTALL.md](INSTALL.md).
+- **I just want to use it** → `cd your-project && sparc init "your goal" && sparc pipeline start`.
+- **I want to extend it** → see [HITL.md](HITL.md) (add a review surface) or [ADDING-STAGES.md](ADDING-STAGES.md) (add a stage).
+
+---
+
 ## The 30,000-foot view
 
 ```
-                 ┌─────────────────────────────────────┐
-                 │           YOU (the human)           │
-                 └────────────┬───────────────┬────────┘
-                              │               │
-                  reviews via │               │ monitors via
-                              ▼               ▼
-       ┌────────────────────────────────────────────────────┐
-       │      HITL ADAPTER (terminal / tui / webui /        │
-       │      workspace / official-dashboard)               │
-       └─────────────────────┬──────────────────────────────┘
-                             │ notify / await_reply
-                             ▼
-       ┌────────────────────────────────────────────────────┐
-       │   SPARC-PIPELINE ORCHESTRATOR DAEMON               │
-       │   (bin/sparc-pipeline, polls every 3s)             │
-       │                                                    │
-       │   • Watches Hermes Kanban for `ready` tasks        │
-       │   • Spawns the right profile for each task         │
-       │   • Watches Hermes Kanban for `blocked` tasks      │
-       │   • Surfaces HITL review requests                  │
-       │   • Applies APPROVE/REDIRECT/REJECT decisions     │
-       └─────────────────────┬──────────────────────────────┘
-                             │ spawns
-                             ▼
-       ┌────────────────────────────────────────────────────┐
-       │   STAGE AGENTS (sparc-spec, sparc-design, etc.)    │
-       │   Each is a Hermes session in a per-stage profile. │
-       │                                                    │
-       │   Reads parent context from kanban comment thread. │
-       │   Writes artifact to disk + mirrors to kanban.     │
-       │   Calls kanban_complete or kanban_block.           │
-       └─────────────────────┬──────────────────────────────┘
-                             │ reads/writes
-                             ▼
-       ┌────────────────────────────────────────────────────┐
-       │   HERMES KANBAN  (durable SQLite per board)        │
-       │   Parent→child DAG via task_links.                 │
-       │   This is the single source of truth for state.    │
-       └────────────────────────────────────────────────────┘
+  YOU (the human)
+       │
+       │ review / approve / redirect
+       ▼
+  HITL ADAPTER  ◀───  any of: terminal / tui / webui / workspace / official-dashboard
+       │
+       │ surfaces a review request, awaits a reply
+       ▼
+  SPARC-PIPELINE ORCHESTRATOR  (bin/sparc-pipeline, polls Hermes Kanban every 3s)
+       │
+       │ spawns the right profile for each ready task
+       ▼
+  STAGE AGENTS  (sparc-spec, sparc-design, sparc-pseudocode, …)
+       │
+       │ writes artifact (disk) + mirrors (kanban comment thread) + transitions state
+       ▼
+  HERMES KANBAN  (SQLite per board — single source of truth)
 ```
 
-## The data flow for a single stage transition
+That's the whole system. Everything else is detail.
+
+---
+
+## System architecture
+
+The package has **four layers**, each stateless except where noted. The arrows show the direction of *invocation*, not necessarily data flow.
+
+```
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 1  ·  YOU (the human)                                                │
+  │                                                                             │
+  │   The only layer that isn't code. Reviews arrive in whatever UI you chose   │
+  │   at setup time. You reply APPROVE / REDIRECT / REJECT. That's the entire   │
+  │   contract you have with the system.                                       │
+  └────────────────────────────────────┬────────────────────────────────────────┘
+                                       │  reply (APPROVE | REDIRECT | REJECT)
+                                       ▼
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 2  ·  HITL ADAPTERS  (lib/adapters/hitl/<name>.sh)                  │
+  │                                                                             │
+  │   Five shipped in v0.1.0: terminal, tui, webui, workspace,                 │
+  │   official-dashboard. All implement the same three-function contract:      │
+  │   hitl_<name>_probe / notify / await_reply.                                 │
+  │                                                                             │
+  │   Stateless. No state. One file per adapter. Pluggable.                    │
+  └────────────────────────────────────┬────────────────────────────────────────┘
+                                       │  echo of the reply
+                                       ▼
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 3  ·  ORCHESTRATOR DAEMON  (bin/sparc-pipeline)                      │
+  │                                                                             │
+  │   A 200-line bash daemon. Two responsibilities:                             │
+  │     · poll Hermes Kanban for `ready` tasks → spawn the right profile       │
+  │     · poll Hermes Kanban for `blocked` tasks → surface to the HITL adapter │
+  │   Polls every 3s. No event subscription (yet).                              │
+  │                                                                             │
+  │   Stateless. Restart the daemon, the pipeline resumes from the DB.          │
+  └────────────────────────────────────┬────────────────────────────────────────┘
+                                       │  spawns `hermes -p <profile> chat -q "..."`
+                                       ▼
+  ┌─────────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 4  ·  STAGE AGENTS  (6 profiles, 1 reviewer)                          │
+  │                                                                             │
+  │   Each profile is a Hermes session with its own memory, model config, and  │
+  │   per-stage circuit breakers. Each agent runs to completion, then exits.    │
+  │   Reads parent's kanban comment thread → writes artifact to disk + kanban  │
+  │   → calls exactly one terminal verb (kanban_complete or kanban_block).      │
+  │                                                                             │
+  │   State: own memory, own model config, own session.                         │
+  └────────────────────────────────────┬────────────────────────────────────────┘
+                                       │  reads / writes
+                                       ▼
+  ╔═════════════════════════════════════════════════════════════════════════════╗
+  ║  THE ONE PIECE OF STATE  ·  HERMES KANBAN  (SQLite per board)               ║
+  ║                                                                             ║
+  ║   ~/.hermes/kanban/boards/<slug>/kanban.db                                  ║
+  ║                                                                             ║
+  ║   This is the single source of truth. Every state transition, every         ║
+  ║   artifact mirror, every review decision, every parent→child link —         ║
+  ║   all rows in this DB. The orchestrator and all agents read from and        ║
+  ║   write to it. The DB is the *only* thing that has to survive a restart.    ║
+  ╚═════════════════════════════════════════════════════════════════════════════╝
+```
+
+Why a single SQLite file at the bottom? Because **durable coordination is the hard part** of multi-agent systems, and SQLite + parent→child DAG is the simplest thing that works. The MAST taxonomy (NeurIPS 2025) shows that 41.77% of multi-agent failures are spec issues. The fix is a single, replayable, auditable state. SQLite gives you that for free.
+
+---
+
+## Data flow for a single stage transition
 
 1. **Stage N agent finishes.** It writes `docs/sparc/<board>/<stage>/<task-id>.md` to disk, mirrors the artifact to the kanban comment thread, and calls either `sparc_kanban_complete` (no review) or `sparc_kanban_block` (review needed).
 2. **Dispatcher sees the new state** (3s polling). The `task_links` parent→child DAG means stage N+1's task is now eligible to move from `todo` → `ready`. (Hermes Kanban's dispatcher does this automatically.)

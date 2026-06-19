@@ -38,7 +38,9 @@ See `docs/HITL.md` — "Authoring a HITL adapter" section. Ship the adapter unde
 
 ### Adding a new notify channel
 
-Same pattern under `lib/adapters/notify/`. Expose `notify_<channel>_send` and `notify_<channel>_await_reply`. See `docs/HITL.md`.
+### Adding a notify channel
+
+Notify channels (chat-gateway pings) are planned for **v0.2.0** — they live in a separate `lib/adapters/notify/` directory that doesn't exist yet in v0.1.0. If you want to add one today, see the "Adding a chat-gateway notifier" section in [HITL.md](docs/HITL.md) for the recommended workaround pattern using a custom HITL adapter.
 
 ### Adding a new SPARC stage
 

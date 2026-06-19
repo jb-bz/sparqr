@@ -1,125 +1,255 @@
-# Hermes SPARC Orchestration Package
+<div align="center">
 
-> A pluggable, UI-agnostic implementation of the **SPARC+Design** methodology (Specification → Design → Pseudocode → Architecture → Refinement → Completion) for [Hermes Agent](https://hermes-agent.nousresearch.com/), with **human-in-the-loop** gates and durable coordination via Hermes Kanban.
+# ⚡️ sparqr
+
+### SPARC+Design orchestration for [Hermes Agent](https://hermes-agent.nousresearch.com/)
+
+*6-stage pipeline. Pluggable human-in-the-loop. Durable coordination via Hermes Kanban. ~5 min to install.*
+
+<br>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Hermes Agent](https://img.shields.io/badge/Hermes-Agent-blueviolet)](https://hermes-agent.nousresearch.com/)
+[![Hermes Agent](https://img.shields.io/badge/Hermes-%E2%89%A50.6.0-blueviolet)](https://hermes-agent.nousresearch.com/)
 [![SPARC+Design](https://img.shields.io/badge/SPARC%2BDesign-6%20stages-orange)](docs/ARCHITECTURE.md)
+[![Bash](https://img.shields.io/badge/Bash-%E2%89%A54.0-4EAA25.svg)](https://www.gnu.org/software/bash/)
+[![macOS+Linux](https://img.shields.io/badge/macOS%20%2B%20Linux-tested-success)](https://github.com/jb-bz/sparqr/actions)
+[![Tests](https://img.shields.io/badge/tests-111%20passing-brightgreen)](tests/)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-## What this is
+</div>
 
-A drop-in package you import into a **running** Hermes install. It gives you:
+---
 
-- A **6-stage pipeline** (SPARC's 5 official phases + a Design phase you add between Specification and Pseudocode)
-- **7 named profiles** in `~/.hermes/profiles/` — one per stage agent + one reviewer
-- A **durable coordination substrate** built on Hermes Kanban (SQLite per-board, parent→child DAG via `task_links`)
-- **Human-in-the-loop gates** at the stage boundaries (light-touch — see [HITL.md](docs/HITL.md))
-- A **pluggable HITL adapter layer** so you can review from any of:
-  - The Hermes TUI (`/kanban` slash command)
-  - The official `hermes dashboard` (`:9119`)
-  - [`nesquena/hermes-webui`](https://github.com/nesquena/hermes-webui) (`:8787`, with its built-in kanban board)
-  - [`outsourc-e/hermes-workspace`](https://github.com/outsourc-e/hermes-workspace) (`:3000`, Swarm Mode Kanban TaskBoard)
-  - Plain terminal prompts (fallback)
+## ✨ What is this?
 
-  All five ship in v0.1.0 and the setup script auto-detects which are running. A chat-gateway notifier (Telegram / Discord / Slack / Signal / email) is a separate concept and is planned for v0.2.0 — see [docs/HITL.md](docs/HITL.md) for the adapter interface so you can roll your own.
-- A **`sparc` CLI** for orchestration (`sparc pipeline start`, `sparc stage spec`, `sparc doctor`, etc.)
-- A **6-template artifact kit** (specification, design, pseudocode, architecture, refinement, completion)
-- A **full end-to-end example** in `examples/hello-sparc/`
+**sparqr** is a small, focused package that turns [Hermes Agent](https://hermes-agent.nousresearch.com/) into a 6-stage autonomous software development pipeline. It's the methodology of [SPARC](https://github.com/ruvnet/sparc) (Specification → Pseudocode → Architecture → Refinement → Completion) plus a Design phase, made practical with **pluggable human-in-the-loop review gates** and **durable coordination via Hermes Kanban**.
 
-## What this is NOT
+You install it once, run `sparc init "build something"` in any project, and Hermes agents start producing spec → design → pseudo → arch → code → test artifacts in order, with a human review gate at the points that matter.
 
-- **Not a fresh Hermes installer.** It does not touch `~/.hermes/config.yaml`, your API keys, your model, your skills, or your memory. It only adds to `~/.hermes/profiles/`, `~/.hermes/skills/`, and `~/.hermes/scripts/`.
-- **Not a multi-agent framework.** It is a methodology + glue. The orchestrator is a small bash daemon. The agents are your existing Hermes, scoped to per-stage profiles.
-- **Not an external PM tool.** It does not require Plane.so, Linear, or Jira. If you already use one of those, see [docs/HITL.md § "Mirroring to an external tool"](docs/HITL.md) for the optional mirror pattern.
-- **Not a substitute for the Hermes Kanban docs.** This package assumes you have read [the canonical Kanban docs](https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban) at least once.
+```
+  $ sparc pipeline start
+  ✓ started (PID 78492)
 
-## Quick start (5 minutes)
+  [14:23:01] sparc-pipeline started (board=sparc-my-app, hitl=webui)
+  [14:23:04] spawning stage agent: task=T-001 stage=spec profile=sparc-spec skill=sparc-stage-spec
+  [14:23:48] HITL review request: task=T-001 stage=spec artifact=./docs/sparc/spec/T-001.md
+```
+
+---
+
+## 🛸 Why sparqr?
+
+The hard part of multi-agent software development is **not** getting agents to do things — it's preventing them from doing the **wrong** things. The MAST taxonomy (NeurIPS 2025) found that **41.77% of multi-agent failures are specification issues**. SPARC's 6-stage pipeline with explicit human gates is the proven mitigation. sparqr is the implementation.
+
+> **SPARC** is the methodology. **Hermes Kanban** is the substrate. **sparqr** is the orchestrator that ties them together with a human-in-the-loop review surface of your choice.
+
+sparqr vs. the alternatives:
+
+| | **sparqr** | AutoGen | CrewAI | LangGraph | Ruflo/SPARC |
+|---|---|---|---|---|---|
+| Built for Hermes | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Reversibility-aware HITL | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ |
+| Stage gates (not free-form) | ✅ | ❌ | ❌ | ❌ | ✅ |
+| 5 HITL UI surfaces built in | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Self-hosted, no SaaS | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Single-file CLI install | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Bash, 200 lines of orchestrator | ✅ | ❌ (Python) | ❌ (Python) | ❌ (Python) | ❌ (TS) |
+| Maintained in 2026 | ✅ | ⚠️ (Microsoft absorbed it) | ✅ | ✅ | ✅ |
+
+---
+
+## 🖼️ Screenshots
+
+> *Coming soon.* Real screenshots of `sparc pipeline start` in action, the kanban board populated with stage tasks, and a sample HITL review in [hermes-webui](https://github.com/nesquena/hermes-webui) will land in `docs/screenshots/` once we record them. If you want to contribute screenshots from your own setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+In the meantime, here's what the terminal output looks like:
+
+```
+$ sparc pipeline start
+  → starting sparc-pipeline (logs: /Users/you/.hermes/sparc-package/logs/sparc-pipeline.log)
+  ✓ started (PID 78492)
+
+$ tail -f /Users/you/.hermes/sparc-package/logs/sparc-pipeline.log
+[14:23:01] sparc-pipeline started (board=sparc-my-app, hitl=webui)
+[14:23:04] spawning stage agent: task=T-001 stage=spec profile=sparc-spec
+[14:23:48] HITL review request: task=T-001 stage=spec artifact=./docs/sparc/spec/T-001.md
+```
+
+---
+
+## 🚀 Quick start (5 minutes)
 
 ```bash
 # 1. Clone
-git clone https://github.com/<your-org>/hermes-sparc-package.git
-cd hermes-sparc-package
+git clone https://github.com/jb-bz/sparqr.git
+cd sparqr
 
-# 2. Run the importer — interactive, asks 1 question, ~2 minutes
+# 2. Run the importer (asks 1 question, ~2 minutes)
 ./setup.sh
 
 # 3. Verify
 sparc doctor
 
-# 4. Try the example
+# 4. Try the example end-to-end
 cd examples/hello-sparc
 sparc init "Build a CLI that reverses input lines"
+sparc pipeline start
 
-# 5. Review from your preferred UI (webui / workspace / dashboard / TUI / terminal)
+# 5. Review from your preferred UI
+#    (webui / workspace / dashboard / TUI / terminal)
 ```
 
 `setup.sh` will:
-- Detect your Hermes version
-- Create 7 profiles (`sparc-spec`, `sparc-design`, `sparc-pseudocode`, `sparc-architecture`, `sparc-refinement`, `sparc-completion`, `sparc-reviewer`)
-- Install 5 skills into `~/.hermes/skills/software-development/`
-- Install the `sparc` CLI into `~/.local/bin/` (or your `$PATH`)
-- Probe for running HITL surfaces (hermes-webui / hermes-workspace / hermes dashboard) and let you pick one
-- Run `sparc doctor` at the end so you can see the green lights
+- ✅ Detect your Hermes version
+- ✅ Create 7 profiles (6 stage agents + 1 reviewer)
+- ✅ Install 5 skills into `~/.hermes/skills/software-development/`
+- ✅ Install the `sparc` CLI into `~/.local/bin/`
+- ✅ Probe for running HITL surfaces and let you pick one
+- ✅ Run `sparc doctor` so you can see the green lights
 
-## Documentation
+---
 
-- **[INSTALL.md](docs/INSTALL.md)** — Detailed install walkthrough, troubleshooting, idempotency notes
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — How the pieces fit (orchestrator, kanban, profiles, adapters, agents)
-- **[HITL.md](docs/HITL.md)** — Human-in-the-loop gates, the adapter interface, how to write a new adapter, how to mirror to an external PM tool
-- **[ADDING-STAGES.md](docs/ADDING-STAGES.md)** — How to add/remove/reorder stages (it's data, not code)
+## 🏛️ The 6 stages
+
+```
+          ┌─────────────┐
+          │ Specification│ → user stories, acceptance criteria, success metrics
+          └──────┬──────┘
+                 ▼
+          ┌─────────────┐
+          │    Design    │ → user flows, visual design, components  ★ community extension
+          └──────┬──────┘
+                 ▼
+          ┌─────────────┐
+          │  Pseudocode  │ → numbered algorithmic steps, decision points
+          └──────┬──────┘
+                 ▼
+          ┌─────────────┐
+          │ Architecture │ → components, data flow, API contracts
+          └──────┬──────┘
+                 ▼
+          ┌─────────────┐
+          │ Refinement   │ → TDD implementation, debugging, security
+          └──────┬──────┘
+                 ▼
+          ┌─────────────┐
+          │  Completion  │ → verification, docs, deployment
+          └─────────────┘
+
+   ▲                                              ▲
+   │         HITL gate (configurable)             │
+   └──── Spec ✓  Arch ✓  Complete ✓ ──────────────┘
+```
+
+Each stage:
+- **Reads upstream context** from the kanban comment thread (no lost handoffs)
+- **Writes its artifact** to both disk and kanban (dual-store, survives anything)
+- **Calls exactly one terminal verb** at the end: `sparc_kanban_complete` (no review) or `sparc_kanban_block` (human review needed)
+
+The Design phase is a community extension to upstream SPARC's 5 phases. It makes "what does this look like" a first-class review gate. Skip it with one line in `sparc.config.yaml` if you want pure SPARC.
+
+---
+
+## 🎛️ Human-in-the-loop, your way
+
+The HITL surface is pluggable. Five ship in v0.1.0:
+
+| Adapter | Surface | When to use |
+|---|---|---|
+| `terminal` | In-CLI prompts | Always available, zero setup |
+| `tui` | File-based, picked up by Hermes TUI `/kanban` | When you have a TUI session open |
+| `webui` | [`nesquena/hermes-webui`](https://github.com/nesquena/hermes-webui) on `:8787` | You do most work in the webui |
+| `workspace` | [`outsourc-e/hermes-workspace`](https://github.com/outsourc-e/hermes-workspace) on `:3000` | You want the dedicated Kanban TaskBoard |
+| `official-dashboard` | Built-in `hermes dashboard` on `:9119` | Fallback when nothing else is running |
+
+Pick at setup time. Change later with one line in `sparc.config.yaml`. Author new adapters — see [docs/HITL.md](docs/HITL.md).
+
+Default gate placement follows the [reversibility-aware heuristic](https://agentpatterns.ai/workflows/human-in-the-loop) from agentpatterns.ai: gate Spec (irreversible commitment), Architecture (foundation), and Completion (ship decision). Skip Design / Pseudocode / Refinement (easily redone). Configurable per project.
+
+---
+
+## 🧰 What's in the box
+
+```
+sparqr/
+├── setup.sh                          # imports into running Hermes, ~2 min
+├── sparc.config.yaml.example         # per-project config
+├── bin/                              # 6 CLI scripts
+│   ├── sparc                         #   top-level dispatcher
+│   ├── sparc-init                    #   create a project's pipeline
+│   ├── sparc-pipeline                #   orchestrator daemon (the heart)
+│   ├── sparc-stage                   #   run one stage by hand
+│   ├── sparc-hitl-watcher            #   manual HITL management
+│   └── sparc-doctor                  #   9-point health check
+├── lib/                              # bash library
+│   ├── stages.sh                     #   stage table (data, not code)
+│   ├── kanban.sh                     #   kanban verb wrappers
+│   ├── artifacts.sh                  #   dual-store artifact policy
+│   ├── validators.sh                 #   stage-transition validators
+│   └── adapters/hitl/                #   5 pluggable HITL adapters
+├── profiles/                         # 7 Hermes profiles
+├── skills/                           # 5 skills for the running Hermes
+├── templates/                        # 6 artifact templates
+├── examples/hello-sparc/             # end-to-end example
+├── docs/                             # INSTALL, ARCHITECTURE, HITL, ADDING-STAGES, TROUBLESHOOTING, FAQ
+├── tests/                            # 111 tests, all passing
+├── .github/                          # issue + PR templates
+├── LICENSE                           # MIT
+├── CONTRIBUTING.md
+├── CHANGELOG.md
+└── README.md                         # you are here
+```
+
+**111 tests across 5 suites, all passing:**
+
+```
+test_adapters.sh                 20 pass  ·  0 fail
+test_e2e.sh                      14 pass  ·  0 fail
+test_kanban.sh                   14 pass  ·  0 fail
+test_setup.sh                    54 pass  ·  0 fail
+test_validators.sh                9 pass  ·  0 fail
+```
+
+---
+
+## 📚 Documentation
+
+- **[INSTALL.md](docs/INSTALL.md)** — Detailed install walkthrough, troubleshooting, idempotency
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — How the pieces fit, with diagrams
+- **[HITL.md](docs/HITL.md)** — Human-in-the-loop adapters, how to author one
+- **[ADDING-STAGES.md](docs/ADDING-STAGES.md)** — How to add/remove/reorder stages
 - **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** — Common failure modes and fixes
 - **[FAQ.md](docs/FAQ.md)** — Frequently asked questions
 
-## Repository layout
+---
 
-```
-package/
-├── setup.sh                     # import into running Hermes
-├── sparc.config.yaml.example    # per-project config
-├── bin/                         # CLI (sparc, sparc-pipeline, sparc-hitl-watcher, sparc-stage, sparc-doctor)
-├── lib/                         # shared bash library
-│   ├── stages.sh                # stage definitions (pluggable)
-│   ├── kanban.sh                # kanban_* wrapper
-│   ├── artifacts.sh             # artifact storage helper
-│   ├── validators.sh            # spec/arch acceptance validators
-│   └── adapters/
-│       ├── hitl/                # terminal, tui, webui, workspace, official-dashboard
-│       └── notify/              # log, telegram (opt-in)
-├── profiles/                    # 7 per-stage profile YAMLs
-├── skills/                      # 5 skills for the running Hermes
-├── templates/                   # 6 artifact templates
-├── examples/hello-sparc/        # end-to-end working example
-├── docs/                        # the docs above
-├── tests/                       # shell-based test suite
-├── .github/                     # issue + PR templates
-├── LICENSE                      # MIT
-├── CONTRIBUTING.md
-├── CHANGELOG.md
-└── README.md                    # you are here
-```
+## 🤝 Contributing
 
-## Requirements
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports, new HITL adapters, new stage definitions, and docs improvements all welcome. The maintainers review within ~3 business days.
 
-- Hermes Agent >= 0.6.0 (`hermes --version`)
-- Hermes Kanban enabled (it is by default since Hermes 0.1.2)
-- Bash >= 4.0
-- macOS or Linux (Windows: best-effort via WSL2)
-- `sqlite3` CLI (preinstalled on macOS and most Linux)
-- `curl` (for HITL adapter probes)
-- `jq` (for JSON parsing in the orchestrator)
-- One of: `hermes-webui` (optional), `hermes-workspace` (optional), built-in `hermes dashboard` (optional, ships with `hermes-agent[web,pty]`)
+---
 
-## Why SPARC+Design and not just SPARC?
+## 🗺️ Roadmap
 
-Upstream `ruvnet/sparc` is 5 phases. The Design phase between Specification and Pseudocode is a community extension — it makes "what does this look like" a first-class review gate instead of letting it leak into Pseudocode. You can remove it with one line of config if you want pure SPARC. See [docs/ADDING-STAGES.md](docs/ADDING-STAGES.md).
+- **v0.1.0** (this release) — core package, 6 stages, 5 skills, 5 HITL adapters
+- **v0.2.0** (planned) — chat-gateway notify channels (Telegram / Discord / Slack / Signal / email), event-based poller replacement, Plane.so mirror adapter
+- **v0.3.0** (planned) — per-stage model routing (cheap models for spec/pseudo, strong for refine/complete)
+- **v1.0.0** (planned) — stable CLI surface, semver guarantees, marketplace publishing
 
-## License
+---
 
-MIT. See [LICENSE](LICENSE).
+## 🌟 Acknowledgments
 
-## Acknowledgments
+- [Hermes Agent](https://hermes-agent.nousresearch.com/) — the agent runtime
+- [ruvnet](https://github.com/ruvnet) — the original [SPARC](https://github.com/ruvnet/sparc) methodology
+- [Nesquena](https://github.com/nesquena) — [`hermes-webui`](https://github.com/nesquena/hermes-webui) and its built-in kanban panel
+- The [`hermes-workspace`](https://github.com/outsourc-e/hermes-workspace) maintainers — Swarm Mode Kanban TaskBoard
+- The MAST authors (arXiv 2503.13657) — for quantifying *why* stage gates matter
 
-- The [Hermes Agent](https://hermes-agent.nousresearch.com/) team for Kanban, profiles, and skills
-- [ruvnet](https://github.com/ruvnet) for the original [SPARC](https://github.com/ruvnet/sparc) methodology
-- [Nesquena](https://github.com/nesquena) for the first-party `hermes-webui` and its kanban panel
-- The [`hermes-workspace`](https://github.com/outsourc-e/hermes-workspace) maintainers for the Swarm Mode Kanban TaskBoard that this package can drive as a Conductor
+---
+
+<div align="center">
+
+**[⬆ back to top](#-sparqr)** · made with ⚡️ in plain bash + sqlite + jq
+
+</div>

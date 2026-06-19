@@ -35,4 +35,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hermes Kanban's fixed 7-status state machine means stage progress is encoded via profile assignment + task title prefix, not custom columns
 - No cross-board task linking (Hermes Kanban limitation, not the package's)
 
-[0.1.0]: https://github.com/yourname/hermes-sparc-package/releases/tag/v0.1.0
+[0.1.0]: https://github.com/jb-bz/sparqr/releases/tag/v0.1.0

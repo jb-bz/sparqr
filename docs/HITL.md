@@ -2,6 +2,21 @@
 
 The HITL layer is the difference between an autonomous agent that does things and a tool you can trust to do things. This document explains how the package's HITL layer works, how to configure it, and how to add a new adapter.
 
+**Navigation:** [How HITL works](#how-hitl-works-in-this-package) · [Built-in adapters](#built-in-adapters) · [Choosing between surfaces](#choosing-between-webui-workspace-and-official-dashboard) · [Notify channels](#notify-channels-planned-for-v020) · [Authoring a HITL adapter](#authoring-a-hitl-adapter) · [Reversibility-aware gates](#reversibility-aware-gate-placement) · [Mirroring to external PM](#mirroring-to-an-external-pm-tool) · [Reference](#reference)
+
+---
+
+## Quick links
+
+- **What is sparqr?** See the [README](../README.md).
+- **How do stage gates work?** See [ARCHITECTURE.md](ARCHITECTURE.md).
+- **I want to add a new stage** → [ADDING-STAGES.md](ADDING-STAGES.md).
+- **I want to add a new review surface** → [Authoring a HITL adapter](#authoring-a-hitl-adapter).
+- **Something broke** → [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+- **FAQ** → [FAQ.md](FAQ.md).
+
+---
+
 ## How HITL works in this package
 
 When a stage agent finishes a stage that's gated for human review, it calls:

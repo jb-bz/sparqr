@@ -2,6 +2,19 @@
 
 If `sparc doctor` is happy but something is broken, start here. If `sparc doctor` is unhappy, fix what it complains about first.
 
+**Navigation:** [Setup / install](#setup--install) · [Profiles](#profiles) · [Skills](#skills) · [Kanban](#kanban) · [Orchestrator daemon](#orchestrator-daemon) · [HITL](#hitl) · [Artifact storage](#artifact-storage) · [Replacing the poller with events](#replacing-the-poller-with-events-advanced) · [Performance](#performance) · [Getting more help](#getting-more-help)
+
+---
+
+## Quick links
+
+- **What is sparqr?** See the [README](../README.md).
+- **How does it work?** See [ARCHITECTURE.md](ARCHITECTURE.md).
+- **Common questions** → [FAQ.md](FAQ.md).
+- **Spotted a bug?** [File an issue](https://github.com/jb-bz/sparqr/issues/new?template=bug_report.md).
+
+---
+
 ## Setup / install
 
 ### `bash: bad substitution` when running setup.sh

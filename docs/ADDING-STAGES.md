@@ -2,6 +2,19 @@
 
 Stages are pure data in `lib/stages.sh`. The orchestrator, validator, and stage-agent-runner all read from this single source. To customize the pipeline, edit the data.
 
+**Navigation:** [The 6 default stages](#the-6-default-stages) · [Per-project override](#per-project-override-no-code-change) · [Adding a new stage (for everyone)](#adding-a-new-stage-to-the-package-for-everyone) · [Removing a stage (per-project)](#removing-a-stage-per-project) · [Removing a stage (for everyone)](#removing-a-stage-for-everyone) · [What to NOT customize](#what-to-not-customize) · [Reference](#reference)
+
+---
+
+## Quick links
+
+- **What is sparqr?** See the [README](../README.md).
+- **What are the default stages?** See the [README § The 6 stages](../README.md#-the-6-stages).
+- **I want a new HITL review surface** → [HITL.md](HITL.md).
+- **Something broke** → [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+
+---
+
 ## The 6 default stages
 
 ```

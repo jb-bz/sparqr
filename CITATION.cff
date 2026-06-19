@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use sparqr in academic work, please cite it."
+title: "sparqr — SPARC+Design orchestration for Hermes Agent"
+type: software
+license: MIT
+repository-code: "https://github.com/jb-bz/sparqr"
+repository: "https://github.com/jb-bz/sparqr"
+homepage: "https://github.com/jb-bz/sparqr"
+abstract: >-
+  sparqr turns Hermes Agent into a 6-stage autonomous software development
+  pipeline (Specification → Design → Pseudocode → Architecture → Refinement →
+  Completion) with pluggable human-in-the-loop review gates and durable
+  coordination via Hermes Kanban. Stage gates follow the MAST taxonomy's
+  recommendation to address the 41.77% spec-ambiguity failure mode in
+  multi-agent systems.
+keywords:
+  - multi-agent
+  - sparc
+  - human-in-the-loop
+  - hermes-agent
+  - orchestration
+  - software-development
+authors:
+  - family-names: "bankey"
+    given-names: "j."
+    alias: "jb-bz"
+    email: "jb@mysteryd.com"
+date-released: 2026-06-17
+version: 0.1.0
