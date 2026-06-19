@@ -179,7 +179,7 @@ This is left as an exercise; not implemented in v0.1.0. If you build it, please 
 ### Pipeline is slow
 
 - `agent.max_turns: 90` for refinement/completion is the highest in the package. Lower it for your use case.
-- `terminal.timeout: 1800` (30 min) is the wall-clock cap per task. If your tasks need longer, raise it.
+- `terminal.timeout: 1800` (seconds, the wall-clock cap per task; 1800 seconds = half an hour). If your tasks need longer, raise it.
 - The 3-second polling interval adds up to 3s of latency between stage transitions. If you need faster, see "Replacing the poller with events" above.
 
 ### Tokens are expensive

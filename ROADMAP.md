@@ -11,11 +11,35 @@
 
 - **Part 1 — Critical review of v0.1.0.** What's actually weak, what I underestimated, what I'm worried will bite us.
 - **Part 2 — Gap analysis.** Concrete things missing, categorized by severity.
-- **Part 3 — Roadmap.** Three versions out (v0.2, v0.3, v1.0) with explicit priorities, "skip" candidates, and acceptance criteria.
+- **Part 3 — Roadmap.** Three versions out (v0.2, v0.3, v1.0) with explicit priorities, "skip" candidates, and acceptance criteria. Each story is sized in story points.
 - **Part 4 — Specific other improvements.** Smaller ideas worth picking up in v0.2.0 alongside the headline features.
 - **Part 5 — What I'm explicitly NOT recommending**, with reasons.
 
 The point of this document isn't to commit to every item. It's to give you a clear map of the design space so you can make trade-off decisions, and to capture the reasoning while it's fresh.
+
+---
+
+## Story-point scale
+
+Every item in this document is sized using the standard Fibonacci scale. **No human-time estimates anywhere.** Story points are about relative complexity, not duration.
+
+| Points | What it means | Example from this project |
+|---|---|---|
+| **1** | Trivial. A few lines. No design decisions. | Fix a typo in a doc. Rename a config key consistently. |
+| **2** | Small. One file, one concept. Low risk. | Add a new HITL adapter. Add a stage validation rule. |
+| **3** | Small-to-medium. One file, real design. | Add a new CLI subcommand. Add a new artifact template. |
+| **5** | Medium. Multi-file, requires testing. | The v0.1.0 per-stage model routing. The chat-gateway notify channel. |
+| **8** | Large. Architectural change, multiple files, breaks things. | The event-based poller replacement. The kanban CLI compat shim. |
+| **13** | Too big to ship as one story. Must be split. | The full v0.4.0 local web dashboard. The full v0.1.0 multi-user mode. |
+
+A few rules of thumb for staying honest:
+
+- **A 13 is a sign you haven't broken it down enough.** Split it.
+- **Relative sizing matters more than absolute numbers.** If a kanban compat shim is an 8 and a new HITL adapter is a 2, the shim really is roughly 4x harder — that's the kind of comparison story points are for.
+- **Don't compare to anything external.** Story points are calibrated to *this project's* history, not "industry average for a feature like this."
+- **Acceptance criteria, not time.** Each story has acceptance criteria. If you can't write them, you haven't defined the story well enough.
+
+**Release budget:** each release section in Part 3 lists the stories and their total point sum. The implicit budget is "what fits in one development cycle" — defined by your available attention, not by a calendar. If v0.2.0 ends up at 100 points, you can either (a) ship less of v0.2.0, (b) split v0.2.0 into v0.2.0 + v0.2.5, or (c) find a way to reduce the per-point cost (more efficient tools, better abstractions). You cannot "add more weeks."
 
 ---
 
@@ -41,7 +65,7 @@ I'm going to be honest about what I think we got wrong, in order of how much I t
 
 **What I mean:** `lib/kanban.sh` and `bin/sparc-pipeline` assume specific Hermes Kanban CLI verbs (`kanban boards list`, `kanban --board X set TASK --status Y`, `kanban --board X link`, etc.). If Hermes renames a verb, breaks a flag, or changes how the kanban CLI surfaces parent→child link status, the package breaks silently. The mock hermes in `tests/test_e2e.sh` had to implement every verb the package uses, which is a good signal — it means we have implicit coverage, but it also means the surface area is wide.
 
-**What to do:** Add a `lib/kanban_compat.sh` shim layer. Try the modern verb first, fall back to the legacy verb, log a warning. The hermes-agent team ships breaking changes occasionally and we shouldn't have to chase them. Also: add a CI test that runs against a pinned Hermes version, so we know within minutes if a Hermes release breaks us.
+**What to do:** Add a `lib/kanban_compat.sh` shim layer. Try the modern verb first, fall back to the legacy verb, log a warning. The hermes-agent team ships breaking changes occasionally and we shouldn't have to chase them. Also: add a CI test that runs against a pinned Hermes version, so we know within one CI cycle (a few minutes) if a Hermes release breaks us.
 
 ## 1.3 The artifact model is dual-store, but the dual store isn't transactional
 
@@ -49,7 +73,7 @@ I'm going to be honest about what I think we got wrong, in order of how much I t
 
 **Why I didn't make it transactional:** SQLite + filesystem don't have a unified transaction model. The two stores are independent. Solving this properly would require either (a) writing artifacts only to one place and treating the other as a derived view, or (b) implementing a write-ahead log and a background reconciler.
 
-**What to do (v0.2.0):** Background reconciler. Every minute, scan `docs/sparc/<board>/<stage>/*.md` on disk and verify each one is in its kanban task's comment thread. If not, append it. Idempotent, runs as a separate small script, no impact on the main orchestrator loop.
+**What to do (v0.2.0):** Background reconciler. Periodically (configurable interval; default once per orchestrator tick), scan `docs/sparc/<board>/<stage>/*.md` on disk and verify each one is in its kanban task's comment thread. If not, append it. Idempotent, runs as a separate small script, no impact on the main orchestrator loop.
 
 ## 1.4 The "reviewer" is its own profile but doesn't have its own skills directory
 
@@ -79,9 +103,9 @@ I'm going to be honest about what I think we got wrong, in order of how much I t
 
 ## 1.7 The README's "5 minute install" claim is aspirational
 
-**What I mean:** `setup.sh` runs in ~2 minutes, but only the package-side stuff. Before that you need: a working Hermes install (5-10 min if from scratch), Bitwarden Secrets Manager set up (15 min for first-time), a GitHub PAT (5 min), and 1-2 minutes of answering prompts. Realistic first-install time: 30-45 minutes. The "5 minute" claim will make experienced devs feel lied to when they hit the BSM setup wall.
+**What to mean:** `setup.sh` runs the package-side steps quickly, but only that. Before that you need: a working Hermes install (significant effort if from scratch), Bitwarden Secrets Manager set up (a non-trivial first-time setup), a GitHub PAT, and a few moments of answering prompts. Realistic first-install is much longer than the README implies, and the "5 minute" claim will make experienced devs feel lied to when they hit the BSM setup wall. **No time estimate** — just acknowledge the gap.
 
-**What to do:** Update the README to "5 minutes if you already have Hermes + BSM set up; 30-45 minutes for a clean install." And add a "Prerequisites check" script that runs first and tells you what's missing before you commit to the 30-minute flow.
+**What to do:** Update the README to be honest about the install experience. Something like "the package-side install is fast; the prerequisites (Hermes + BSM) are the slow part." Add a prerequisites check script that runs first and tells the user what's missing before they commit to the install flow. Both of these are sized in v0.2.0 as story 8 (Prerequisites check) plus a follow-up doc edit.
 
 ## 1.8 No observability for a production pipeline
 
@@ -100,7 +124,7 @@ I'm going to be honest about what I think we got wrong, in order of how much I t
 
 **What I mean:** If `hermes -p sparc-refinement chat -q "..."` crashes mid-task, the task is left in `running` state. The orchestrator sees it as `running` (not `ready`), skips it, and the pipeline stalls. There's no automatic retry, no escalation, no notification.
 
-**What to do (v0.2.0):** Add a stale-task reaper. The orchestrator, on every tick, checks for tasks in `running` state whose associated PID (stored in a sidecar file or in the kanban task metadata) is no longer alive. If a task is stale for >5 minutes, mark it `ready` with a comment "[REAPED] Agent crashed, retrying" and let the next tick re-spawn it. Add a `failure_limit` per task so it doesn't loop forever — after N crashes, mark it `blocked` with reason "agent crashes exceeded retry limit."
+**What to do (v0.2.0):** Add a stale-task reaper. The orchestrator, on every tick, checks for tasks in `running` state whose associated PID (stored in a sidecar file or in the kanban task metadata) is no longer alive. If a task has been `running` for too many ticks (configurable; default 100 ticks), mark it `ready` with a comment "[REAPED] Agent crashed, retrying" and let the next tick re-spawn it. Add a `failure_limit` per task so it doesn't loop forever — after N crashes, mark it `blocked` with reason "agent crashes exceeded retry limit."
 
 ## 1.10 The package is a single-user story. No multi-user. No teams. No permissions.
 
@@ -143,17 +167,21 @@ What's missing in v0.1.0, categorized by severity. "P0" = blocker for real use. 
 
 I considered two cuts: (A) **adoption-first** (better docs, hosted demo, more users before more features) and (B) **robustness-first** (event-based, integration tests, reaper, then features). I went with a hybrid because pure A produces a popular unstable product and pure B produces a stable unused product.
 
-## v0.2.0 — "Make it work reliably" (~6-8 weeks of focused work)
+Each release below lists its stories as a numbered list with story points. At the end of each release is the **total point sum** — your implicit budget for "what fits in one development cycle." See the [Story-point scale](#story-point-scale) section for what the numbers mean.
+
+---
+
+## v0.2.0 — "Make it work reliably"
 
 **Theme:** v0.1.0 has the right shape. v0.2.0 makes it not-stupid.
 
-**Headline features:**
+**Stories:**
 
-1. **Event-based poller** (gap 1.1). SQLite trigger + sidecar table. 250ms polling on the sidecar instead of 3s on the whole kanban. Backward-compatible: if the trigger doesn't fire (older Hermes), fall back to current 3s polling.
-2. **Kanban CLI compat shim** (gap 1.2). Try modern verbs, fall back to legacy. Log warnings. Catches Hermes CLI renames automatically.
-3. **Stale-task reaper** (gap 1.9). Tasks in `running` for >5 min with dead PID → re-queue as `ready` with a `[REAPED]` comment. Per-task `failure_limit` to bound retries.
-4. **Reviewer checklist skill** (gap 1.4). `sparc-reviewer-checklist` skill that teaches the reviewer agent to verify artifact against spec's acceptance criteria, post structured review, then `kanban_block` with the review as reason.
-5. **Per-stage model routing** (was in v0.2.0 roadmap). `sparc.config.yaml` gains:
+1. **Event-based poller** (gap 1.1) — **8 pts**. SQLite trigger on kanban + sidecar table. 250ms polling on the sidecar instead of 3s on the whole kanban. Backward-compatible: if the trigger doesn't fire (older Hermes), fall back to current 3s polling.
+2. **Kanban CLI compat shim** (gap 1.2) — **8 pts**. Try modern verbs, fall back to legacy. Log warnings. Catches Hermes CLI renames automatically. Includes unit tests for each verb-mapping.
+3. **Stale-task reaper** (gap 1.9) — **5 pts**. Tasks in `running` for >5 ticks with dead PID → re-queue as `ready` with a `[REAPED]` comment. Per-task `failure_limit` to bound retries (default 2).
+4. **Reviewer checklist skill** (gap 1.4) — **5 pts**. `sparc-reviewer-checklist` skill that teaches the reviewer agent to verify artifact against spec's acceptance criteria, post structured review, then `kanban_block` with the review as reason.
+5. **Per-stage model routing** — **5 pts**. `sparc.config.yaml` gains:
    ```yaml
    models:
      spec: anthropic/claude-haiku-4
@@ -163,118 +191,117 @@ I considered two cuts: (A) **adoption-first** (better docs, hosted demo, more us
      refinement: anthropic/claude-sonnet-4
      completion: anthropic/claude-sonnet-4
    ```
-   Defaults to the active profile's model. Token cost reduction of ~60-70% on typical pipelines.
-6. **Integration test suite** (gap 1.6). `tests/integration/` with a Docker compose file that spins up a real Hermes. Marked slow. CI runs it on every PR. First 3 tests: `setup.sh` against real Hermes, single-stage run end-to-end, two-stage pipeline with HITL.
-7. **CI workflow** (gap). GitHub Actions: shellcheck on every push, full test suite on every PR, integration tests on main merges.
-8. **Prerequisites check** (gap 1.7). `sparc-doctor --pre-install` (or just better doctor) detects missing Hermes / BSM / git / jq / sqlite before the user runs `setup.sh`.
-9. **Single-user story documented** (gap 1.10). One line in README: "⚠️ Single-user. Multi-user / teams is a v1.0 feature."
+   Defaults to the active profile's model. The orchestrator passes `--model` to spawned `hermes chat` invocations.
+6. **Integration test suite** (gap 1.6) — **8 pts**. `tests/integration/` with a Docker compose file that spins up a real Hermes. Marked slow. CI runs it on every PR. First 3 tests: `setup.sh` against real Hermes, single-stage run end-to-end, two-stage pipeline with HITL.
+7. **CI workflow** — **3 pts**. GitHub Actions: shellcheck on every push, full test suite on every PR, integration tests on main merges.
+8. **Prerequisites check** (gap 1.7) — **3 pts**. `sparc-doctor --pre-install` (or just better doctor) detects missing Hermes / BSM / git / jq / sqlite before the user runs `setup.sh`.
+9. **Single-user story documented** (gap 1.10) — **1 pt**. One line in README: "⚠️ Single-user. Multi-user / teams is a v1.0 feature."
+
+**Total: 46 pts.** That's a meaningful release — substantial but bounded. If it feels like too much, the natural split is "v0.2.0 = stability (stories 1, 2, 3, 4, 7) = 29 pts" and "v0.2.5 = features (stories 5, 6, 8, 9) = 17 pts." Or v0.2.0 ships stories 1-5 (29 pts) and v0.2.5 ships 6-9 (15 pts). I won't make that call — you know your attention budget better than I do.
 
 **Acceptance criteria for v0.2.0:**
+
 - All 111 existing tests still pass
 - ≥5 new integration tests pass against real Hermes
 - shellcheck clean on all `.sh` files
-- Polling latency is 250ms instead of 3s
+- Polling latency is 250ms instead of 3s (measured)
 - A pipeline that runs to completion without manual intervention (autonomous mode, with reviewer gates disabled)
 - A pipeline where every gate is human-reviewed and the human uses *only* the Hermes TUI to interact
 
 **What I'm explicitly NOT doing in v0.2.0:** chat-gateway notify channels, JSON schema for config, observability/dashboard, structured gate types, the Plane.so mirror. Each is in a later version with reasoning.
 
-## v0.3.0 — "Make it pleasant" (~3 months after v0.2.0)
+---
+
+## v0.3.0 — "Make it pleasant"
 
 **Theme:** v0.2.0 works. v0.3.0 makes you want to keep using it.
 
-1. **Structured HITL gate types** (gap 1.5). `gate: { type: approval | confidence | sampling | exception, params: {...} }`. The four patterns from agentpatterns.ai. Approval is the current behavior; the other three are new.
-2. **Confidence-threshold auto-approve.** Stage agents self-report confidence (0-1). If above threshold, skip the gate. Default threshold 0.9. Configurable per-stage.
-3. **Sampling.** Configurable % of stage outputs get human review even if confident. Default 10%. Each project's review rate tracked over time.
-4. **Exception-only mode.** Review only on failure: validator rejects, agent self-reports low confidence, or specific keyword in artifact. Everything else auto-approves. For "I just want a safety net" users.
-5. **`sparc status`** command. Single view of all running pipelines, their current stage, time-in-stage, token cost.
-6. **Artifact reconciler** (gap 1.3). Background script that runs every minute, syncs disk artifacts to kanban comment threads. Idempotent.
-7. **Log rotation**. `sparc-pipeline.log` rotates at 50MB, keeps last 5.
-8. **JSON schema for `sparc.config.yaml`** (was in v0.2.0 roadmap). Catches typos at config time. Optional `sparc config validate` command.
+**Stories:**
+
+1. **Structured HITL gate types** (gap 1.5) — **13 pts**. `gate: { type: approval | confidence | sampling | exception, params: {...} }`. The four patterns from agentpatterns.ai. Approval is the current behavior; the other three are new. This is a 13 because it touches the schema, the orchestrator loop, every HITL adapter, and the validator. **Must be split into sub-stories before shipping:** (a) schema + loaders, (b) `confidence` type, (c) `sampling` type, (d) `exception` type, (e) deprecate the boolean `requires_review`.
+2. **Confidence-threshold auto-approve** — *part of story 1 above* (folded into the `confidence` type). Stage agents self-report confidence (0-1). If above threshold, skip the gate. Default threshold 0.9. Configurable per-stage.
+3. **Sampling** — *part of story 1 above* (folded into the `sampling` type). Configurable % of stage outputs get human review even if confident. Default 10%. Each project's review rate tracked over time.
+4. **Exception-only mode** — *part of story 1 above* (folded into the `exception` type). Review only on failure: validator rejects, agent self-reports low confidence, or specific keyword in artifact. Everything else auto-approves. For "I just want a safety net" users.
+5. **`sparc status` command** — **3 pts**. Single view of all running pipelines, their current stage, time-in-stage, token cost. Reads from the kanban DB + log files. No new state.
+6. **Artifact reconciler** (gap 1.3) — **5 pts**. Background script that runs every minute, syncs disk artifacts to kanban comment threads. Idempotent. Can be enabled/disabled in `sparc.config.yaml`.
+7. **Log rotation** — **2 pts**. `sparc-pipeline.log` rotates at 50MB, keeps last 5. Standard `logrotate` or simple in-bash rotation.
+8. **JSON schema for `sparc.config.yaml`** — **3 pts**. Catches typos at config time. Optional `sparc config validate` command.
+
+**Total: 28 pts (after folding 2/3/4 into story 1) or 50 pts (if 1 is split into 5 sub-stories).** Treat the 5 sub-stories as separate points in your tracking.
 
 **Acceptance criteria for v0.3.0:**
-- All v0.2.0 tests still pass
-- A pipeline can run with `gate: sampling, percent: 5` and produce no surprises
-- `sparc status` accurately reports state across 3+ concurrent pipelines
-- Reconciler runs for 24 hours with no manual intervention and keeps disk/kanban in sync
 
-## v0.4.0 — "Make it adoptable" (~5 months after v0.3.0)
+- All v0.2.0 tests still pass
+- A pipeline can run with `gate: sampling, percent: 5` and produce no surprises (manually verified)
+- `sparc status` accurately reports state across 3+ concurrent pipelines
+- Reconciler runs across many orchestrator ticks with no manual intervention and keeps disk/kanban in sync (measured: re-killing mid-stage and confirming the artifact lands in the kanban thread on the next cycle)
+
+---
+
+## v0.4.0 — "Make it adoptable"
 
 **Theme:** v0.3.0 is excellent for power users. v0.4.0 makes it approachable.
 
-1. **`sparc new` interactive project template.** Asks: web app? CLI? Library? Internal tool? Each maps to different stage defaults, HITL gate placement, and recommended model routing.
-2. **Hosted demo.** A `sparqr.sh` script that spins up sparqr + Hermes + webui in a sandbox. The user can try the full pipeline in their browser without installing anything. The killer feature for adoption.
-3. **Local web dashboard.** Single-user, localhost-only. Shows all running pipelines, click a task to see its artifact and stage history. This is the user's "I want sparqr in hermes-webui" feature from the original conversation. Build it as a separate service (`sparc-dashboard`) that the user runs alongside Hermes.
-4. **Chat-gateway notify channels** (re-introduced from earlier plan). Telegram, Discord, Slack, Signal. Properly pluggable. Auto-detected from existing Hermes gateway config.
-5. **Video walkthrough.** A 5-minute "from zero to first pipeline" video. Embed in README.
-6. **Tutorial repo.** `sparqr-tutorial` — a step-by-step example with a real (toy) project, commits, screenshots.
+**Stories:**
+
+1. **`sparc new` interactive project template** — **5 pts**. Asks: web app? CLI? Library? Internal tool? Each maps to different stage defaults, HITL gate placement, and recommended model routing. Reads from a `templates/projects/<type>/` directory.
+2. **Hosted demo** — **8 pts**. A `sparqr.sh` script that spins up sparqr + Hermes + webui in a sandbox. The user can try the full pipeline in their browser without installing anything. The killer feature for adoption. Includes a `docker-compose.yml`.
+3. **Local web dashboard** — **13 pts**. Single-user, localhost-only. Shows all running pipelines, click a task to see its artifact and stage history. This is the "I want sparqr in hermes-webui" feature. **Must be split into sub-stories before shipping:** (a) HTTP server + auth (local-only), (b) pipeline list view, (c) task detail view, (d) artifact viewer with stage history, (e) approve/reject UI. Build it as a separate service (`sparc-dashboard`) that the user runs alongside Hermes.
+4. **Chat-gateway notify channels** (re-introduced from earlier plan) — **5 pts**. Telegram, Discord, Slack, Signal. Properly pluggable. Auto-detected from existing Hermes gateway config. Each adapter in `lib/adapters/notify/<channel>.sh`.
+5. **Video walkthrough** — **2 pts**. A video titled "from zero to first pipeline" embedded in README. Recording + editing is the actual work; the content is just running through the README's quick start while a screen recorder captures the terminal and the Hermes webui kanban.
+6. **Tutorial repo** — **3 pts**. `sparqr-tutorial` — a step-by-step example with a real (toy) project, commits, screenshots.
+
+**Total: 36 pts (after splitting the dashboard 13 into 5 sub-stories for tracking).**
 
 **Acceptance criteria for v0.4.0:**
-- A new user can go from `git clone` to a running pipeline in under 15 minutes following only the README
+
+- A new user can go from `git clone` to a running pipeline in one session following only the README
 - `sparqr.sh` demo works in a Codespace
 - ≥50 GitHub stars (realistic for a niche tool that's well-positioned)
 
-## v1.0.0 — "Make it a product" (~9 months after v0.1.0)
+---
+
+## v1.0.0 — "Make it a product"
 
 **Theme:** v0.4.0 is excellent. v1.0.0 makes it safe to depend on.
 
-1. **Stable CLI surface.** Semver guarantees. Deprecation policy: at least one minor version with deprecation warnings before removal.
-2. **Hermes marketplace publication.** `hermes skills install https://github.com/jb-bz/sparqr` works.
-3. **Multi-user mode.** Optional. A "team" profile (multiple reviewers, round-robin assignment, comment threads visible to all). Backwards-compatible with single-user.
-4. **External PM tool integration.** Optional mirror to Plane.so / Linear / Jira. The user explicitly said no to this in v0.1.0; if they adopt those tools later, the v1.0 mirror is the right time. Or they don't adopt them and this never ships.
-5. **A paid-hosting option.** (Out of scope for the open-source project; this is for whoever maintains it commercially.)
-6. **Long-term support commitment.** 12-month LTS releases.
+**Stories:**
+
+1. **Stable CLI surface** — **5 pts**. Semver guarantees. Deprecation policy: at least one minor version with deprecation warnings before removal. Audit all CLI verbs and document the public-vs-internal surface.
+2. **Hermes marketplace publication** — **5 pts**. `hermes skills install https://github.com/jb-bz/sparqr` works. Submit a PR to the hermes-agent skills registry.
+3. **Multi-user mode** (optional) — **13 pts**. A "team" profile (multiple reviewers, round-robin assignment, comment threads visible to all). Backwards-compatible with single-user. **Must be split into sub-stories:** (a) reviewer assignment, (b) team kanban board, (c) per-reviewer notification, (d) audit log.
+4. **External PM tool integration** (optional) — **13 pts**. Optional mirror to Plane.so / Linear / Jira. The user explicitly said no to this in v0.1.0; if they adopt those tools later, the v1.0 mirror is the right time. Or they don't adopt them and this never ships. **Must be split:** (a) Plane.so, (b) Linear, (c) Jira.
+5. **A paid-hosting option** — *not in scope for the open-source project; this is for whoever maintains it commercially. Listed here for completeness; 0 pts for the OSS repo.*
+6. **Long-term support commitment** — **2 pts**. Long-term support (LTS) releases with a published support window. Document the LTS policy: how long each LTS is supported, what kinds of fixes get backported, security-patch policy. The number is a calendar duration, not an effort estimate.
+
+**Total: 38 pts (after splitting the 13s), or 12 pts if you skip multi-user and external PM (the 13s).** The minimum-viable v1.0.0 is stories 1, 2, 6 = 12 pts. The full-fat version is 38 pts.
 
 **Acceptance criteria for v1.0.0:**
-- No breaking CLI changes for 12 months after v1.0.0 release
+
+- No breaking CLI changes for a committed LTS window (≥2 minor versions) after v1.0.0 release
 - `hermes skills install <url>` works end-to-end
 - At least 100 active installs (download stats from npm or a similar signal)
 
 ---
 
-# Part 4 — Specific other improvements worth picking up
+# Part 4 — Specific other improvements
 
-These are smaller ideas that don't fit neatly into the versioned milestones but are worth doing alongside the headline features.
+These are smaller stories that don't fit neatly into the versioned milestones but are worth picking up alongside the headline features. **All sized in story points** so they can be slotted into a release budget when capacity allows.
 
-## 4.1 `sparc diff` — see what a stage changed
+| Story | Points | When to slot in | Notes |
+|---|---|---|---|
+| 4.1 `sparc diff <task>` — see what a stage changed | 3 | v0.2.0 or v0.3.0 | Reads all artifacts in the task's lineage and shows diffs. Cheap, useful for understanding agent behavior. |
+| 4.2 `sparc retry <task>` — manually re-run a stage | 2 | v0.2.0 | When a stage produces a bad artifact but doesn't crash, currently you have to `sparc hitl redirect`. A dedicated verb is one less thing to remember. |
+| 4.3 `sparc pause` / `sparc resume` — graceful daemon control | 3 | v0.2.0 | Let the current stage finish, then stop accepting new stages. Quality-of-life win. |
+| 4.4 `--dry-run` flag on `sparc pipeline start` | 2 | v0.2.0 | Run one tick without spawning agents or modifying state. Shows what *would* happen. Invaluable for debugging. |
+| 4.5 Per-stage `--max-attempts` instead of pipeline-wide `failure_limit` | 3 | v0.2.0 | Currently a task has one `failure_limit`. Refinement might need 3 retries; completion only needs 1. Make it per-stage. |
+| 4.6 `sparc lint` — check `sparc.config.yaml` sanity | 2 | v0.2.0 | Not as heavy as the v0.3.0 JSON schema. Quick checks: board exists, profiles valid, disk_dir writable. |
+| 4.7 `sparc doctor --fix` | 5 | v0.3.0 | Doctor reports problems. `--fix` repairs the easy ones: missing skills (re-install), wrong path (re-link), stale PID file (clear). |
+| 4.8 `--verbose` / `--quiet` on every CLI verb | 2 | v0.2.0 | For piping into scripts and for debugging. Trivial to add, big UX win. |
+| 4.9 Default model selection that respects `~/.hermes/config.yaml` | 1 | v0.2.0 | The orchestrator lets the profile's default model win. Pass `--model` explicitly per stage. Folded into the per-stage model routing story. |
+| 4.10 Stage cost report in `sparc status` | 3 | v0.3.0 | Tokens per stage, estimated $ (with pricing data), compare across runs. Helps find the costly stage. |
 
-Right now you can see artifacts in `./docs/sparc/<board>/<stage>/<task-id>.md` but you can't see "what did refinement actually change vs. architecture?" `sparc diff <task>` would show artifact-by-artifact diffs across stages. Cheap, useful for understanding agent behavior.
-
-## 4.2 `sparc retry <task>` — manually re-run a stage
-
-When a stage produces a bad artifact, the orchestrator only retries automatically on crash. If the artifact is bad but the agent didn't crash, you have to manually `sparc hitl redirect <task> "..."`. A `sparc retry <task>` verb would be one less thing to remember.
-
-## 4.3 `sparc pause` and `sparc resume` — graceful control of the daemon
-
-The orchestrator can be `start`ed and `stop`ped. But there's no "pause" — let the current stage finish, then stop accepting new stages. Useful when you want to step away but don't want to kill the in-flight work. A small feature, big quality-of-life win.
-
-## 4.4 `--dry-run` flag on `sparc pipeline start`
-
-Run one tick without spawning any agents or modifying state. Just shows what *would* happen. Invaluable for debugging "why isn't the pipeline advancing?"
-
-## 4.5 Per-stage `--max-attempts` instead of pipeline-wide `failure_limit`
-
-Currently a task has one `failure_limit`. If a stage fails 3 times, the whole pipeline halts. A common pattern is "refinement might need 3 retries but completion only needs 1." Make it per-stage.
-
-## 4.6 A `sparc lint` that checks `sparc.config.yaml` schema
-
-Not as heavy as the v0.3.0 JSON schema. Just a quick sanity check: does the board exist? Are the profiles valid? Does the disk_dir exist and is it writable? Catches the most common config errors at `sparc init` time.
-
-## 4.7 A `sparc doctor --fix` mode
-
-`doctor` reports problems. `--fix` would attempt to repair the most common ones: missing skills (re-install), wrong path (re-link), stale PID file (clear). Don't try to fix everything — just the easy wins.
-
-## 4.8 A `--verbose` / `--quiet` flag on every CLI verb
-
-For piping into scripts and for debugging. Trivial to add, big UX win.
-
-## 4.9 Default model selection that respects `~/.hermes/config.yaml`
-
-The orchestrator currently spawns `hermes -p <profile> chat -q "..."` and lets the profile's default model win. But it could explicitly pass `--model <X>` per stage if the per-stage model routing is set. This is a small change with big cost-savings implications.
-
-## 4.10 A "stage cost" report in `sparc status`
-
-Show how many tokens each stage used, how much $ that was (if you have pricing data), and compare across runs. Helps you find which stage to optimize for cost. Defer to v0.3.0 if v0.2.0 is too packed.
+**Total: 26 pts** across all 10 stories. Most are 2-3 pts. If you wanted to add all of them to a single release, that's a meaningful chunk. Realistically, slot the 2-3 pt ones into whatever release you happen to be working on, and let the 5-pt ones wait for capacity.
 
 ---
 
@@ -287,7 +314,7 @@ Sometimes the right call is to not build something. Here's what I'm saying "no" 
 The user asked for this in the original conversation ("I want sparqr in hermes-webui"). My recommendation: **don't build it in v0.x**. Reasons:
 
 - The hermes-webui and hermes-workspace already have kanban boards. sparqr uses Hermes Kanban. The existing boards show the state. The user already has a web UI.
-- Building a custom web UI is a 3-6 month project by itself. It would dominate v0.2.0 or v0.3.0.
+- Building a custom web UI is a large project on its own (sized at 13 pts in v0.4.0, which is a "must be split" indicator — the dashboard alone is 5+ sub-stories). It would dominate v0.2.0 or v0.3.0 if attempted.
 - hermes-workspace's Swarm Mode Conductor is *exactly* what we'd build. Until that's mature, the user can use hermes-workspace directly.
 
 When to revisit: v0.4.0 or later, if there's clear demand and the existing UIs don't suffice.

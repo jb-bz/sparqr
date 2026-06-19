@@ -4,7 +4,7 @@
 
 ### SPARC+Design orchestration for [Hermes Agent](https://hermes-agent.nousresearch.com/)
 
-*6-stage pipeline. Pluggable human-in-the-loop. Durable coordination via Hermes Kanban. ~5 min to install.*
+*6-stage pipeline. Pluggable human-in-the-loop. Durable coordination via Hermes Kanban. Quick to install — see [Quick start](#-quick-start).*
 
 <br>
 
@@ -77,14 +77,16 @@ $ tail -f /Users/you/.hermes/sparc-package/logs/sparc-pipeline.log
 
 ---
 
-## 🚀 Quick start (5 minutes)
+## 🚀 Quick start
 
 ```bash
 # 1. Clone
 git clone https://github.com/jb-bz/sparqr.git
 cd sparqr
 
-# 2. Run the importer (asks 1 question, ~2 minutes)
+# 2. Run the importer (asks 1 question; the package-side install is fast, but
+#    the prerequisites — Hermes + Bitwarden Secrets Manager + a GitHub PAT —
+#    are the slow part. See [INSTALL.md](docs/INSTALL.md) for the full story.)
 ./setup.sh
 
 # 3. Verify
@@ -172,7 +174,7 @@ Default gate placement follows the [reversibility-aware heuristic](https://agent
 
 ```
 sparqr/
-├── setup.sh                          # imports into running Hermes, ~2 min
+├── setup.sh                          # imports into running Hermes (one question)
 ├── sparc.config.yaml.example         # per-project config
 ├── bin/                              # 6 CLI scripts
 │   ├── sparc                         #   top-level dispatcher
@@ -225,7 +227,7 @@ test_validators.sh                9 pass  ·  0 fail
 
 ## 🤝 Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports, new HITL adapters, new stage definitions, and docs improvements all welcome. The maintainers review within ~3 business days.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports, new HITL adapters, new stage definitions, and docs improvements all welcome. The maintainers review PRs on a regular cadence (not a fixed SLA).
 
 ---
 

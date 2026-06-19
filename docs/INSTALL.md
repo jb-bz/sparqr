@@ -34,7 +34,9 @@ This guide walks through importing the package into a running Hermes install. If
 git clone https://github.com/jb-bz/sparqr.git
 cd sparqr
 
-# 2. Run the importer (asks 1 question, ~2 minutes)
+# 2. Run the importer (asks 1 question; the package-side install is fast, but
+#    the prerequisites — Hermes + Bitwarden Secrets Manager + a GitHub PAT —
+#    are the slow part. See [Quick links](#quick-links) for the full picture.)
 ./setup.sh
 
 # 3. Verify
