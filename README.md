@@ -26,6 +26,8 @@
 
 You install it once, run `sparc init "build something"` in any project, and Hermes agents start producing spec → design → pseudo → arch → code → test artifacts in order, with a human review gate at the points that matter.
 
+> ⚠️ **Single-user only.** sparqr assumes one human operator on one machine. The kanban board lives in your local `~/.hermes/`, the audit trail is in your local SQLite, the reviewer is your single profile. There's no concept of teams, shared boards, multiple reviewers, or role-based access. If two people want to use sparqr on the same project, they currently have to share a machine or the kanban DB. Multi-user / teams / per-role permissions are planned for [v1.0.0](ROADMAP.md#v100--make-it-a-product) — see the [ROADMAP](ROADMAP.md) for the design conversation.
+
 ```
   $ sparc pipeline start
   ✓ started (PID 78492)
