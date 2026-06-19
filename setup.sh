@@ -27,6 +27,14 @@
 
 set -euo pipefail
 
+# Resolve package root (this file is at <pkg>/setup.sh)
+PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PKG_ROOT
+
+# Source the preflight check
+# shellcheck source=lib/preflight.sh
+source "$PKG_ROOT/lib/preflight.sh"
+
 # ── Parse args ────────────────────────────────────────────────────────────
 ASSUME_YES=0
 for arg in "$@"; do
@@ -82,8 +90,19 @@ cat <<'BANNER'
   skills.  Idempotent — safe to re-run.
 BANNER
 
-# ── 1. Hermes version check ───────────────────────────────────────────────
-hdr "1/7" "Hermes check"
+# ── Preflight: verify all prerequisites are present before we do anything ──
+# This catches the common "I ran setup.sh and it failed halfway through"
+# failure mode. Aborts early if required prereqs are missing.
+hdr "1/7" "Prerequisites check"
+if ! sparc_preflight_check; then
+  echo ""
+  echo "  Setup cannot continue. Install the missing prerequisites above and re-run."
+  exit 1
+fi
+echo ""
+
+# ── 2. Hermes version check ───────────────────────────────────────────────
+hdr "2/7" "Hermes check"
 if ! command -v "$HERMES_BIN" >/dev/null 2>&1; then
   fail "$HERMES_BIN not on PATH. Install Hermes Agent first: https://hermes-agent.nousresearch.com/docs"
   exit 1
@@ -98,7 +117,7 @@ else
 fi
 
 # ── 2. Create profiles ────────────────────────────────────────────────────
-hdr "2/7" "Profiles (7 total)"
+hdr "3/7" "Profiles (7 total)"
 declare -a PROFILES=(
   sparc-spec sparc-design sparc-pseudocode
   sparc-architecture sparc-refinement sparc-completion
@@ -126,7 +145,7 @@ for p in "${PROFILES[@]}"; do
 done
 
 # ── 3. Install skills ─────────────────────────────────────────────────────
-hdr "3/7" "Skills (5 total)"
+hdr "4/7" "Skills (5 total)"
 declare -a SKILLS=(
   sparc-pipeline-orchestrator
   sparc-hitl-watcher
@@ -147,7 +166,7 @@ for s in "${SKILLS[@]}"; do
 done
 
 # ── 4. Install CLI ────────────────────────────────────────────────────────
-hdr "4/7" "sparc CLI"
+hdr "5/7" "sparc CLI"
 ln -sf "$PKG_ROOT/bin/sparc" "$CLI_DEST" 2>/dev/null \
   && ok "linked $CLI_DEST" \
   || warn "could not link $CLI_DEST (you may need sudo, or add $CLI_DEST_DIR to PATH)"
@@ -158,7 +177,7 @@ case ":$PATH:" in
 esac
 
 # ── 5. Probe HITL surfaces, ask the user ─────────────────────────────────
-hdr "5/7" "HITL adapter choice"
+hdr "6/7" "HITL adapter choice"
 # Source the registry to get the probe functions
 # shellcheck source=lib/adapters/hitl/_registry.sh
 source "$PKG_ROOT/lib/adapters/hitl/_registry.sh"
@@ -193,7 +212,7 @@ HITL_CHOICE="${HITL_CHOICE,,}"  # lowercase
 ok "selected: $HITL_CHOICE"
 
 # ── 6. Persist project template + run doctor ──────────────────────────────
-hdr "6/6" "Per-project template + final check"
+hdr "7/7" "Per-project template + final check"
 if [[ -f "./sparc.config.yaml" ]]; then
   ok "sparc.config.yaml already exists in current dir (not overwriting)"
 else

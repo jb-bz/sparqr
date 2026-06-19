@@ -22,7 +22,7 @@ for f in README.md LICENSE CHANGELOG.md CONTRIBUTING.md .gitignore setup.sh \
          sparc.config.yaml.example \
          bin/sparc bin/sparc-init bin/sparc-pipeline bin/sparc-stage \
          bin/sparc-hitl-watcher bin/sparc-doctor \
-         lib/stages.sh lib/kanban.sh lib/artifacts.sh lib/validators.sh \
+         lib/stages.sh lib/kanban.sh lib/artifacts.sh lib/validators.sh lib/preflight.sh \
          lib/adapters/hitl/_registry.sh lib/adapters/hitl/terminal.sh \
          lib/adapters/hitl/tui.sh lib/adapters/hitl/webui.sh \
          lib/adapters/hitl/workspace.sh lib/adapters/hitl/official-dashboard.sh; do

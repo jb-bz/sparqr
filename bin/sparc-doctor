@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # bin/sparc-doctor — Validate the package install and report issues.
 #
+# Usage: sparc doctor [--pre-install]
+#   --pre-install  Run only the prerequisites check (the same check
+#                  setup.sh runs at startup) and exit. Useful when you
+#                  want to verify your environment before running setup.
+#
 # Checks (in order):
 #   1. Hermes binary present and ≥ 0.6.0
 #   2. All 7 expected profiles exist
@@ -14,7 +19,22 @@
 
 set -euo pipefail
 
+# --pre-install short-circuit: just run the prerequisites check and exit
+if [[ "${1:-}" == "--pre-install" ]]; then
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/preflight.sh"
+  echo "════════════════════════════════════════════════════════════════════"
+  echo "  SPARC+Design  ·  pre-install prerequisites check"
+  echo "════════════════════════════════════════════════════════════════════"
+  echo ""
+  if sparc_preflight_check; then
+    exit 0
+  else
+    exit 1
+  fi
+fi
+
 SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SPARC_PKG_ROOT/lib/preflight.sh"
 source "$SPARC_PKG_ROOT/lib/stages.sh"
 source "$SPARC_PKG_ROOT/lib/kanban.sh"
 source "$SPARC_PKG_ROOT/lib/artifacts.sh"
