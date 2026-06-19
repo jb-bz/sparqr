@@ -231,10 +231,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports, new HITL adapters, new stag
 
 ## 🗺️ Roadmap
 
+- **[ROADMAP.md](ROADMAP.md)** is the canonical roadmap — read it for the full reasoning, gap analysis, and version-by-version plan. The short version:
 - **v0.1.0** (this release) — core package, 6 stages, 5 skills, 5 HITL adapters
-- **v0.2.0** (planned) — chat-gateway notify channels (Telegram / Discord / Slack / Signal / email), event-based poller replacement, Plane.so mirror adapter
-- **v0.3.0** (planned) — per-stage model routing (cheap models for spec/pseudo, strong for refine/complete)
-- **v1.0.0** (planned) — stable CLI surface, semver guarantees, marketplace publishing
+- **v0.2.0** — "make it work reliably": event-based poller, kanban CLI compat shim, stale-task reaper, real reviewer checklist skill, per-stage model routing, integration test suite, CI, prerequisites check
+- **v0.3.0** — "make it pleasant": structured HITL gate types (confidence / sampling / exception), `sparc status` observability, artifact reconciler, log rotation, JSON schema
+- **v0.4.0** — "make it adoptable": `sparc new` interactive template, hosted demo, local web dashboard, chat-gateway notify channels, video walkthrough
+- **v1.0.0** — "make it a product": stable CLI surface with semver, Hermes marketplace publication, optional multi-user mode, optional external PM tool mirror
+
+Want to suggest something? Open an issue with the [`feature_request` template](https://github.com/jb-bz/sparqr/issues/new?template=feature_request.md) — features get triaged against the roadmap before being added.
 
 ---
 

@@ -82,10 +82,17 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md). The maintainers welcome bug reports, 
 
 ## What's the roadmap?
 
-- **v0.1.0** (this release): core package, 6 stages, 5 skills, 5 HITL adapters
-- **v0.2.0** (planned): event-based poller replacement, chat-gateway notify channels (Telegram / Discord / Slack / Signal / email), Plane.so mirror adapter, JSON schema for `sparc.config.yaml`
-- **v0.3.0** (planned): per-stage model routing in `sparc.config.yaml` (cheap models for spec/pseudo, strong for refine/complete)
-- **v1.0.0** (planned): stable CLI surface, semver guarantees, marketplace publishing
+The canonical roadmap is **[ROADMAP.md](ROADMAP.md)** — read it for the full reasoning, gap analysis, version-by-version plan, what we're explicitly NOT building, and open questions for the maintainer.
+
+The short version:
+
+- **v0.1.0** (this release) — core package, 6 stages, 5 skills, 5 HITL adapters
+- **v0.2.0** — "make it work reliably": event-based poller, kanban CLI compat shim, stale-task reaper, real reviewer checklist skill, per-stage model routing, integration test suite, CI
+- **v0.3.0** — "make it pleasant": structured HITL gate types, `sparc status` observability, artifact reconciler, log rotation, JSON schema
+- **v0.4.0** — "make it adoptable": `sparc new` interactive template, hosted demo, local web dashboard, chat-gateway notify channels
+- **v1.0.0** — "make it a product": stable CLI surface with semver, Hermes marketplace publication, optional multi-user mode
+
+Have a feature request? [Open an issue](https://github.com/jb-bz/sparqr/issues/new?template=feature_request.md) — features get triaged against the roadmap before being added.
 
 ## Where do I report a bug?
 
