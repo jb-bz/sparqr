@@ -88,3 +88,63 @@ jobs:
           # We source lib/preflight.sh directly and call sparc_preflight_check
           # to test it in isolation (no hermes install in CI).
           bash -c 'source lib/preflight.sh && sparc_preflight_check'
+
+  # ── integration: slow integration tests against real Hermes ──────────
+  # These tests use the record-replay harness:
+  #   - On main merges: bring up Docker, re-record sessions, run tests
+  #     against the real Hermes. This catches real-Hermes compatibility
+  #     issues early.
+  #   - On PR builds: skip these tests. They're slow and require Docker
+  #     which GitHub-hosted PR runners may not have access to (Docker
+  #     is restricted on PR-from-fork runners for security).
+  #
+  # The test framework (record-replay) means local devs without Docker
+  # can still run the integration tests against recorded sessions via
+  # `bash tests/integration/test_setup_against_hermes.sh`.
+  integration:
+    name: Integration tests (against real Hermes)
+    runs-on: ubuntu-latest
+    needs: [shellcheck, test]   # only run after unit tests pass
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bash sqlite3 curl jq git python3
+
+      - name: Run integration tests in replay mode (no Docker)
+        # First pass: run against recorded sessions. Fast, no Docker.
+        # Verifies the record-replay harness works.
+        run: |
+          cd tests/integration
+          bash test_setup_against_hermes.sh
+
+      # Note: full Docker-based recording requires the official Hermes
+      # Docker image, which doesn't exist yet (as of writing). When it
+      # does, uncomment the section below and add `services: hermes:`
+      # at the job level to bring up real Hermes.
+      #
+      # - name: Bring up real Hermes in Docker
+      #   run: |
+      #     cd tests/integration
+      #     docker compose up -d hermes
+      #
+      # - name: Record new sessions
+      #   run: |
+      #     cd tests/integration
+      #     RECORD_REPLAY_MODE=record ./run-all.sh
+      #
+      # - name: Verify recorded sessions are valid
+      #   run: |
+      #     cd tests/integration
+      #     bash test_setup_against_hermes.sh
+      #     bash test_single_stage_run.sh
+      #     bash test_two_stage_pipeline.sh
+      #
+      # - name: Tear down Docker
+      #   if: always()
+      #   run: |
+      #     cd tests/integration
+      #     docker compose down

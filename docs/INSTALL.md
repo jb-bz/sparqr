@@ -119,6 +119,55 @@ You should see all checks passing or warning. Common warnings and how to fix the
 
 ---
 
+## Running tests
+
+The package has two test layers:
+
+### Unit tests (fast, default)
+
+Run from the package root:
+```bash
+for t in tests/test_*.sh; do bash "$t"; done
+```
+
+These test the package's logic against mocked hermes. They run in
+seconds, no Docker required. Required for every PR.
+
+### Integration tests (slow, optional)
+
+See [tests/integration/README.md](../tests/integration/README.md) for
+the full design. Quick start:
+
+```bash
+cd tests/integration
+docker compose up -d hermes    # bring up real Hermes in Docker
+RECORD_REPLAY_MODE=record ./run-all.sh
+docker compose down
+```
+
+Without Docker, you can still run integration tests against
+recorded sessions:
+
+```bash
+bash tests/integration/test_setup_against_hermes.sh
+```
+
+This runs in seconds and verifies the orchestrator, kanban wrapper,
+and reaper work against real recorded Hermes outputs.
+
+### What to run before opening a PR
+
+```bash
+bash setup.sh --check        # verify the install path is intact
+for t in tests/test_*.sh; do bash "$t"; done   # unit tests
+```
+
+CI runs the unit tests on every PR and the integration tests on
+every main merge. If your change touches hermes CLI verb assumptions
+or the kanban wrapper, also run the integration tests locally.
+
+---
+
 ## Uninstalling
 
 The package is intentionally easy to undo:
