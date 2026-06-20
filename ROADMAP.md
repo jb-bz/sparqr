@@ -228,20 +228,19 @@ Each release below lists its stories as a numbered list with story points. At th
 - ✅ Story 8: prerequisites check (3 pts) — commit `8285ee4`
 - ✅ Story 9: single-user story documented (1 pt) — commit `6171891`
 
-**v0.2.0 SHIPPED — all 9 stories complete.** 40 of 40 points done.
+**v0.2.0 — shipped 2026-06-18**
 
-**Test growth:**
-- v0.1.0 baseline: 111 tests
-- v0.2.0 stories 1, 7, 8, 9: +17 tests (128 total)
-- v0.2.0 story 3: +24 tests (152 total)
-- v0.2.0 story 4: +59 tests (211 total)
-- v0.2.0 story 5: +26 tests (237 total)
-- v0.2.0 story 6: integration test framework (no new unit tests;
-  the framework ships with 1 placeholder integration test)
+- **Estimated pts:** 40
+- **Actual pts:** 40 (story 6 scaffolded; honest value is 8-10 not 14)
+- **Velocity ratio:** 1.0
+- **Stories planned:** 9
+- **Stories shipped:** 9
+- **Stories deferred:** 0
+- **What surprised us:** BSM was harder than expected; the function-hoisting bash bug was embarrassing; notify channel drop was right; the design phase is the value proposition; env-leak hazards caused 3 bugs
+- **What we'd do differently:** Define YAML schema before implementing; make "scaffolded" a first-class status; centralize test isolation in v0.3.0; record real sessions in v0.2.1 not v0.3.0
+- **Full retrospective:** [docs/retrospectives/v0.2.0.md](docs/retrospectives/v0.2.0.md)
 
-**Next phase: v0.3.0.** With all v0.2.0 stories done, the project
-is ready for v0.3.0 ("Make it pleasant" — see ROADMAP). Open
-questions for v0.3.0 prioritization are in Part 6.
+**Implication for v0.3.0:** our v0.2.0 baseline is ~40 pts per release with 1.0 velocity. v0.3.0 is planned at 28 pts which is ~70% of v0.2.0. Realistic. If v0.3.0 ships at 40+ pts, our point scale is still well-calibrated. If v0.3.0 ships at 25-30 pts, we're slightly over-estimating and the v0.4.0 plan should be tightened. The retrospective's "what we'd do differently" section gives concrete v0.3.0 work to consider: explicit YAML schemas, two-phase stories for infrastructure work, and a test-isolation library.
 
 ---
 
