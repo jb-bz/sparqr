@@ -182,7 +182,7 @@ Each release below lists its stories as a numbered list with story points. At th
 **Stories:**
 
 1. **Event-driven polling** (gap 1.1) — **2 pts** (revised from 8 pts after design spike). Reduce poll interval from 3s to 250ms (configurable via `SPARC_POLL_INTERVAL_SEC` env var). Hermes Kanban already maintains a `task_events` SQLite table (verified during spike on 2026-06-19) that records every state change with a kind, payload, and timestamp — the trigger + sidecar design from the original 8-pt estimate is unnecessary because Hermes is already giving us the events. Bonus: `sparc events <task-id>` reads `task_events` directly for "what just happened?" debugging.
-2. **Kanban CLI compat shim** (gap 1.2) — **8 pts**. Try modern verbs, fall back to legacy. Log warnings. Catches Hermes CLI renames automatically. Includes unit tests for each verb-mapping.
+2. ~~**Kanban CLI compat shim** (gap 1.2) — **8 pts**. Try modern verbs, fall back to legacy. Log warnings. Catches Hermes CLI renames automatically. Includes unit tests for each verb-mapping.~~ **RE-SCOPED to 2 pts** (see below).
 3. **Stale-task reaper** (gap 1.9) — **5 pts**. Tasks in `running` for >5 ticks with dead PID → re-queue as `ready` with a `[REAPED]` comment. Per-task `failure_limit` to bound retries (default 2).
 4. **Reviewer checklist skill** (gap 1.4) — **5 pts**. `sparc-reviewer-checklist` skill that teaches the reviewer agent to verify artifact against spec's acceptance criteria, post structured review, then `kanban_block` with the review as reason.
 5. **Per-stage model routing** — **5 pts**. `sparc.config.yaml` gains:
@@ -201,11 +201,13 @@ Each release below lists its stories as a numbered list with story points. At th
 8. **Prerequisites check** (gap 1.7) — **3 pts**. `sparc-doctor --pre-install` (or just better doctor) detects missing Hermes / BSM / git / jq / sqlite before the user runs `setup.sh`.
 9. **Single-user story documented** (gap 1.10) — **1 pt**. One line in README: "⚠️ Single-user. Multi-user / teams is a v1.0 feature."
 
-**Total: 40 pts (revised from 46 pts after the design spike showed story 1 is 2 pts, not 8).** That's a meaningful release — substantial but bounded. If it feels like too much, the natural split is "v0.2.0 = stability (stories 1, 2, 3, 4, 7) = 23 pts" and "v0.2.5 = features (stories 5, 6, 8, 9) = 17 pts." Or v0.2.0 ships stories 1-5 (23 pts) and v0.2.5 ships 6-9 (15 pts). I won't make that call — you know your attention budget better than I do.
+2a. **Hermes version compatibility** (was story 2) — **2 pts**. A documentation comment in `lib/kanban.sh` records the tested-against Hermes version, the minimum supported version, and the one known quirk (set→update fallback in `sparc_kanban_set_status`). The 6 freed-up points (8 - 2 = 6) are added to story 6 (integration test suite) — increasing it from 8 to 14 pts — because the actual breakage-detection work is better done by integration tests than by a runtime shim.
+
+**Total: 40 pts (unchanged from the previous 40).** Story 2 was originally 8 pts; the re-scope drops 6 from story 2 and adds 6 to story 6 (now 14 pts for integration tests). Story 1 was 2 pts (revised from 8 in an earlier design spike). All other stories unchanged. Net total is the same; it's the *composition* that changed (less shim, more integration tests). If a release is too big, the natural split is "v0.2.0 = stability (stories 1, 2, 2a, 3, 4, 7) = 18 pts" and "v0.2.5 = features (stories 5, 6, 8, 9) = 26 pts." Or v0.2.0 ships stories 1, 2, 2a, 3, 4, 5, 7 (20 pts) and v0.2.5 ships 6, 8, 9 (18 pts). I won't make that call — you know your attention budget better than I do.
 
 **Acceptance criteria for v0.2.0:**
 
-- All 111 existing tests still pass
+- All 128 existing tests still pass (was 111 in v0.1.0; v0.2.0's stories 1, 7, 8, 9 already added 17 tests)
 - ≥5 new integration tests pass against real Hermes
 - shellcheck clean on all `.sh` files
 - Polling latency is 250ms instead of 3s (measured)
@@ -213,6 +215,15 @@ Each release below lists its stories as a numbered list with story points. At th
 - A pipeline where every gate is human-reviewed and the human uses *only* the Hermes TUI to interact
 
 **What I'm explicitly NOT doing in v0.2.0:** chat-gateway notify channels, JSON schema for config, observability/dashboard, structured gate types, the Plane.so mirror. Each is in a later version with reasoning.
+
+**v0.2.0 progress (as of last commit):**
+
+- ✅ Story 1: event-driven polling (2 pts) — commit `56e257c`
+- ✅ Story 2 (re-scoped): Hermes version compatibility (2 pts) — commit `bbee96f`
+- ✅ Story 7: CI workflow (3 pts) — commit `2bd075d`
+- ✅ Story 8: prerequisites check (3 pts) — commit `8285ee4`
+- ✅ Story 9: single-user story documented (1 pt) — commit `6171891`
+- **Remaining: 29 pts** (stories 3, 4, 5, 6 — 5+5+5+14=29 pts total)
 
 ---
 
