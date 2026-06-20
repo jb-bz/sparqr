@@ -195,7 +195,7 @@ Each release below lists its stories as a numbered list with story points. At th
      refinement: anthropic/claude-sonnet-4
      completion: anthropic/claude-sonnet-4
    ```
-   Defaults to the active profile's model. The orchestrator passes `--model` to spawned `hermes chat` invocations.
+   Defaults to the active profile's model. The orchestrator passes `--model` to spawned `hermes chat` invocations. ✅ **Done** — commits `6a3a81d` (parser + tests), `0d37fa0` (orchestrator + example + preflight fix).
 6. **Integration test suite** (gap 1.6) — **8 pts**. `tests/integration/` with a Docker compose file that spins up a real Hermes. Marked slow. CI runs it on every PR. First 3 tests: `setup.sh` against real Hermes, single-stage run end-to-end, two-stage pipeline with HITL.
 7. **CI workflow** — **3 pts**. GitHub Actions: shellcheck on every push, full test suite on every PR, integration tests on main merges.
 8. **Prerequisites check** (gap 1.7) — **3 pts**. `sparc-doctor --pre-install` (or just better doctor) detects missing Hermes / BSM / git / jq / sqlite before the user runs `setup.sh`.
@@ -222,16 +222,18 @@ Each release below lists its stories as a numbered list with story points. At th
 - ✅ Story 2 (re-scoped): Hermes version compatibility (2 pts) — commit `bbee96f`
 - ✅ Story 3: Stale-task reaper (5 pts) — commits `da4fa34` + `1c8b699`
 - ✅ Story 4: Reviewer checklist skill (5 pts) — commits `219a5a8` + `cd258a2`
+- ✅ Story 5: Per-stage model routing (5 pts) — commits `6a3a81d` + `0d37fa0`
 - ✅ Story 7: CI workflow (3 pts) — commit `2bd075d`
 - ✅ Story 8: prerequisites check (3 pts) — commit `8285ee4`
 - ✅ Story 9: single-user story documented (1 pt) — commit `6171891`
-- **Remaining: 19 pts** (stories 5, 6 — 5+14=19 pts total)
+- **Remaining: 14 pts** (story 6 — integration test suite)
 
 **Test growth:**
 - v0.1.0 baseline: 111 tests
 - v0.2.0 stories 1, 7, 8, 9: +17 tests (128 total)
 - v0.2.0 story 3: +24 tests (152 total)
 - v0.2.0 story 4: +59 tests (211 total)
+- v0.2.0 story 5: +26 tests (237 total)
 
 ---
 
