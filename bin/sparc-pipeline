@@ -17,6 +17,9 @@
 #   3. Poll for tasks in `blocked` state
 #   4. For each: surface a HITL review request via the configured adapter,
 #      await the human reply, and unblock or redirect
+#   5. (v0.2.0 story 3) Poll for tasks in `running` state whose agent PID
+#      is dead. Reap them: mark ready + add [REAPED] comment, or block
+#      after max_attempts.
 #
 # That is the entire pipeline. Everything else (TDD, security, validation)
 # happens INSIDE the stage agent, not here.
@@ -32,6 +35,8 @@ source "$SPARC_PKG_ROOT/lib/kanban.sh"
 source "$SPARC_PKG_ROOT/lib/artifacts.sh"
 # shellcheck source=../lib/validators.sh
 source "$SPARC_PKG_ROOT/lib/validators.sh"
+# shellcheck source=../lib/reaper.sh
+source "$SPARC_PKG_ROOT/lib/reaper.sh"
 # shellcheck source=../lib/adapters/hitl/_registry.sh
 source "$SPARC_PKG_ROOT/lib/adapters/hitl/_registry.sh"
 
@@ -113,6 +118,7 @@ run-loop() { run_loop; }
 # once_tick — single iteration of the orchestrator loop.
 # 1. Process any blocked tasks (HITL review)
 # 2. Process any ready tasks (spawn the stage agent)
+# 3. Process any running tasks whose agent is dead (reap)
 once_tick() {
   # ── 1. HITL: process blocked tasks ─────────────────────────────────────
   while IFS=$'\t' read -r task_id title; do
@@ -196,6 +202,30 @@ Steps:
       >> "$LOG_DIR/sparc-stage-$stage-$task_id.log" 2>&1 &
     echo $! > "$LOG_DIR/sparc-stage-$stage-$task_id.pid"
   done < <(sparc_kanban_watch_ready "$SPARC_BOARD")
+
+  # ── 3. Reap: clean up tasks whose agents crashed ─────────────────────
+  # For each `running` task, look up the PID file the spawn step wrote
+  # in Pass 2, and call sparc_reap_check. The reaper checks if the
+  # PID is alive; if dead, it marks the task ready (with a [REAPED]
+  # comment) or blocked after max_attempts.
+  local db_path reap_max
+  reap_max="${SPARC_REAP_MAX_ATTEMPTS:-2}"
+  db_path=$("$SPARC_HERMES_BIN" kanban boards list 2>/dev/null \
+    | awk -v b="$SPARC_BOARD" '$1 == b { print $2; exit }')
+  # Fallback: use the standard layout if the CLI didn't tell us
+  if [[ -z "$db_path" || ! -f "$db_path" ]]; then
+    db_path="$HOME/.hermes/kanban/boards/$SPARC_BOARD/kanban.db"
+  fi
+
+  while IFS=$'\t' read -r task_id title; do
+    [[ -z "$task_id" ]] && continue
+    local stage
+    stage=$(echo "$title" | sed -nE 's/^\[([A-Za-z]+)\].*/\L\1/p')
+    [[ -z "$stage" ]] && stage="unknown"
+    # PID file path matches the one written by Pass 2 above
+    local pid_file="$LOG_DIR/sparc-stage-$stage-$task_id.pid"
+    sparc_reap_check "$db_path" "$SPARC_BOARD" "$task_id" "$pid_file" "$reap_max" 2>/dev/null || true
+  done < <(sparc_kanban_watch_running "$SPARC_BOARD" 2>/dev/null)
 }
 
 # ── Dispatch (after all function definitions) ──────────────────────────

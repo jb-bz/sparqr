@@ -163,6 +163,15 @@ sparc_kanban_watch_blocked() {
     | awk -F'\t' 'NF>=3 {print $1 "\t" $3}'
 }
 
+# sparc_kanban_watch_running <board>
+# Echoes one line per task currently in "running" state. Format: <task_id>\t<title>
+# Used by the reaper (v0.2.0 story 3) to find tasks whose agents may have crashed.
+sparc_kanban_watch_running() {
+  local board="$1"
+  "$SPARC_HERMES_BIN" kanban --board "$board" list --status running 2>/dev/null \
+    | awk -F'\t' 'NF>=3 {print $1 "\t" $3}'
+}
+
 # sparc_kanban_event_log <board> <task_id> [--limit N]
 # Prints the recent event log for a task, oldest first.
 # Each line: <id>\t<created_at_human>\t<kind>\t<payload_excerpt>
