@@ -21,10 +21,12 @@ config:
     max_iterations: 0       # no sub-delegation from the reviewer
 
 # The reviewer is NOT a stage agent. It is HITL plumbing.
-# It loads the orchestrator + hitl-watcher skills so it knows the protocol.
+# It loads the orchestrator + hitl-watcher + reviewer-checklist skills
+# so it knows the protocol AND the structured review recipe.
 skills:
   - sparc-pipeline-orchestrator
   - sparc-hitl-watcher
+  - sparc-reviewer-checklist
 
 tags:
   - sparc
