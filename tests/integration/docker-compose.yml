@@ -1,0 +1,55 @@
+# docker-compose.yml for integration tests.
+#
+# Brings up a real Hermes installation in a container. The integration
+# tests in this directory run against this container, recording its
+# outputs (via the record-replay harness) so local runs without Docker
+# can use the recorded sessions.
+#
+# Usage:
+#   docker compose up -d hermes
+#   ./run-all.sh --record
+#   docker compose down
+#
+# Image notes:
+#   - hermes-agent image: not officially published as a Docker image
+#     at the time of writing. We build it from the official installer.
+#   - This docker-compose is a reference. Adjust the image name and
+#     install path when Hermes publishes an official Docker image.
+#
+# We use hermes 0.51.0 (the version this package was tested against;
+# see lib/kanban.sh's TESTED_AGAINST comment).
+
+services:
+  hermes:
+    build:
+      context: .
+      dockerfile: Dockerfile.hermes
+    container_name: sparqr-test-hermes
+    # Hermes listens on port 8765 by default; kanban on 8766.
+    # These are configurable; we just expose them so the test
+    # container can talk to hermes via localhost:8765.
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+    environment:
+      # Disable hermes's auto-update; we want a stable version for tests.
+      HERMES_NO_UPDATE_CHECK: "1"
+      # Pin the model so recordings are deterministic.
+      HERMES_DEFAULT_MODEL: "anthropic/claude-haiku-4"
+    volumes:
+      # Persist the kanban DB so recordings across test runs are stable.
+      - hermes-data:/root/.hermes
+    healthcheck:
+      # The hermes CLI doesn't expose a /health endpoint directly,
+      # but `hermes --version` exits 0 when it's running. We use that.
+      test: ["CMD", "hermes", "--version"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  hermes-data:
+    # Named volume so the kanban DB survives container restarts.
+    # Recordings reference the DB content; if the DB changes between
+    # runs, recordings may be stale. Persisting helps.

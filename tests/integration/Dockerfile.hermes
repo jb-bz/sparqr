@@ -1,0 +1,50 @@
+# Dockerfile.hermes — Container image for integration tests.
+#
+# Builds a real Hermes installation in a container. The integration
+# tests run against this image; the recording harness captures its
+# outputs so local runs without Docker can replay them.
+#
+# This is a REFERENCE Dockerfile. The official hermes-agent project
+# doesn't (as of writing) publish a Docker image. When one becomes
+# available, replace this Dockerfile with `FROM hermes/agent:X.Y.Z`.
+
+FROM ubuntu:22.04
+
+# Install prerequisites. Hermes needs bash, sqlite3, curl, jq at minimum.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      bash \
+      ca-certificates \
+      curl \
+      git \
+      jq \
+      sqlite3 \
+      python3 \
+      python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Hermes. The official installer is a curl-piped-to-bash script.
+# Pin to a specific version for reproducibility (matches the
+# TESTED_AGAINST version in lib/kanban.sh).
+ARG HERMES_VERSION=0.51.0
+RUN curl -fsSL https://get.hermes-agent.nousresearch.com | \
+    HERMES_VERSION=${HERMES_VERSION} \
+    HERMES_NO_UPDATE_CHECK=1 \
+    bash -s -- --quiet
+
+# Verify Hermes is installed and reachable.
+RUN hermes --version
+
+# Set up the default kanban board for tests. The integration tests
+# expect a board named "sparc-test" to exist. We create it here so
+# tests don't have to (each test would re-create it, slowing things
+# down).
+RUN hermes kanban boards create sparc-test --name "Integration Test Board" --switch
+
+# Default working directory
+WORKDIR /sparqr
+
+# The integration tests are mounted or copied in by docker-compose.
+# This image only provides the Hermes runtime.
+
+CMD ["hermes", "--version"]
