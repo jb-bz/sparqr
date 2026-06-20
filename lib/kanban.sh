@@ -1,14 +1,43 @@
 # lib/kanban.sh — Thin wrapper around the Hermes Kanban CLI.
 #
-# Why a wrapper? Two reasons:
+# Why a wrapper? Three reasons:
 #   1. So the orchestrator doesn't have to know whether it's calling
 #      `hermes kanban create` (the modern CLI verb) or `hermes kanban boards create`
 #      (the board-management verb) — both are wrapped here.
 #   2. So the package has one place to add batch atomicity, error handling,
-#      and fallback behavior if a Hermes CLI verb changes.
+#      and verb-versioning logic.
+#   3. So the kanban CLI surface area is mockable for tests (see tests/test_kanban.sh).
 #
 # All functions return 0 on success, non-zero on failure. On failure, the
 # underlying error is logged to stderr. Callers should check the return code.
+#
+# v0.2.0 — Hermes version compatibility (was story 2 "Kanban CLI compat shim",
+# 8 pts; re-sized to 2 pts after design review):
+#
+#   The original shim design tried to detect-and-fall-back at every call
+#   site, which made every function pass a list of candidate verbs.
+#   That was the wrong abstraction: the shim added 100+ lines of bash
+#   for a problem that's better solved by integration tests in CI.
+#
+#   The actual story: this file assumes a specific Hermes kanban CLI
+#   verb set (see TESTED_AGAINST below). When Hermes renames a verb,
+#   the call here breaks. Detection happens two ways:
+#     1. Integration tests in tests/integration/ (v0.2.0 story 6) run
+#        against real Hermes and catch the breakage on every PR.
+#     2. The `set`/`update` dual-verb fallback in sparc_kanban_set_status
+#        below covers the one known historical rename.
+#
+#   If you upgrade Hermes and a verb breaks, the fix is to update the
+#   relevant function below. Don't add a shim; add a test case to
+#   tests/integration/ that fails with the new verb and update the
+#   code accordingly.
+#
+#   TESTED_AGAINST: Hermes 0.51.0 (verified working as of v0.1.0).
+#   Last verified: 2026-06-17.
+#   Compatible-with: Hermes 0.6.0+ (this package's minimum).
+#   Known-quirks: sparc_kanban_set_status falls back from `set` to
+#   `update` because Hermes has had both verbs at different points in
+#   its history. Other functions assume their primary verb is current.
 
 # Guard against double-sourcing
 if [[ -n "${SPARC_KANBAN_LOADED:-}" ]]; then
