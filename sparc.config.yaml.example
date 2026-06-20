@@ -35,6 +35,25 @@ profiles:
   completion:   sparc-completion
   reviewer:     sparc-reviewer
 
+# Per-stage model overrides. Map stage name -> model ID. Useful for
+# routing cheap tasks (spec, design, pseudocode) to a faster model
+# and expensive tasks (architecture, refinement, completion) to a
+# stronger model. Defaults to the active profile's model if not set.
+#
+# Model IDs follow Hermes's "<provider>/<model>" convention. Examples:
+#   anthropic/claude-haiku-4
+#   anthropic/claude-sonnet-4
+#   openai/gpt-5
+#
+# Uncomment and edit to enable:
+#models:
+#  spec:         anthropic/claude-haiku-4
+#  design:       anthropic/claude-haiku-4
+#  pseudocode:   anthropic/claude-haiku-4
+#  architecture: anthropic/claude-sonnet-4
+#  refinement:   anthropic/claude-sonnet-4
+#  completion:   anthropic/claude-sonnet-4
+
 # Stage enable/disable. Default = all 6 enabled.
 # To run pure SPARC (5 stages, no Design), comment out the design line.
 stages:

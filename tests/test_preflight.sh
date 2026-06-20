@@ -99,20 +99,27 @@ fi
 
 # ── 5. Forced failure: missing tool detection ─────────────────────────
 hdr "missing tool detection"
-# In the test env, bash (3.2 < 4.0) and hermes (not on PATH) are
-# expected to be missing. Verify the function reports BOTH as ✗.
-# We don't try to artificially construct a "sparse PATH" because that
-# breaks bash builtins; instead, we test the function's detection of the
-# actually-missing prereqs in THIS test env.
+# Test the function's detection of MISSING tools by temporarily
+# stripping PATH so hermes isn't found. Restore PATH after.
+# (We don't test the function against the dev env's actual state
+# because that varies — hermes may or may not be installed. We test
+# the function's behavior in a controlled missing-tool scenario.)
 
-# Count missing prereqs in current env (should be ≥ 2: bash + hermes)
-# Note: we don't use `out=$(cmd | grep ...)` because the pipefail setting
-# can make this fragile. We use a temp file instead.
+# Save current PATH, then strip down to a known-bare PATH that
+# excludes any directory where hermes might be installed.
+ORIG_PATH="$PATH"
+# /usr/bin and /bin are always available; hermes wouldn't be there.
+# We strip everything else to guarantee command -v hermes fails.
+STRIPPED_PATH="/usr/bin:/bin"
+
+# Run with stripped PATH so hermes check should fail
 TMPOUT=$(mktemp)
-sparc_preflight_check > "$TMPOUT" 2>&1 || true
+PATH="$STRIPPED_PATH" sparc_preflight_check > "$TMPOUT" 2>&1 || true
+PATH="$ORIG_PATH"
 # Strip ANSI color codes for reliable matching
 missing_count=$(sed -E 's/\x1b\[[0-9;]*m//g' "$TMPOUT" | grep -c "^  ✗" || true)
-rm -f "$TMPOUT"
+# In this scenario, hermes is missing AND bash 3.2 is too old, so
+# at least 2 required prereqs are flagged as missing.
 if [[ "$missing_count" -ge 2 ]]; then
   ok "preflight correctly reports $missing_count required prereqs as missing"
 else
@@ -120,7 +127,7 @@ else
 fi
 
 # The function should return non-zero
-if ! sparc_preflight_check --quiet; then
+if ! PATH="$STRIPPED_PATH" sparc_preflight_check --quiet; then
   ok "preflight returns non-zero exit when required prereqs missing"
 else
   fail "preflight should return non-zero when required prereqs missing"
@@ -128,7 +135,8 @@ fi
 
 # Specific checks: bash 3.2 should be flagged, hermes not found should be reported.
 TMPOUT2=$(mktemp)
-sparc_preflight_check > "$TMPOUT2" 2>&1 || true
+PATH="$STRIPPED_PATH" sparc_preflight_check > "$TMPOUT2" 2>&1 || true
+PATH="$ORIG_PATH"
 if sed -E 's/\x1b\[[0-9;]*m//g' "$TMPOUT2" | grep -qE "bash.*too old.*need.*4.0"; then
   ok "bash 3.2 correctly flagged as too old"
 else
@@ -139,7 +147,7 @@ if sed -E 's/\x1b\[[0-9;]*m//g' "$TMPOUT2" | grep -qE "hermes.*not found"; then
 else
   fail "missing hermes should be reported"
 fi
-rm -f "$TMPOUT2"
+rm -f "$TMPOUT" "$TMPOUT2"
 
 # ── 6. Report format ───────────────────────────────────────────
 hdr "report format"

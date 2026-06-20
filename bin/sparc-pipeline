@@ -37,6 +37,8 @@ source "$SPARC_PKG_ROOT/lib/artifacts.sh"
 source "$SPARC_PKG_ROOT/lib/validators.sh"
 # shellcheck source=../lib/reaper.sh
 source "$SPARC_PKG_ROOT/lib/reaper.sh"
+# shellcheck source=../lib/config.sh
+source "$SPARC_PKG_ROOT/lib/config.sh"
 # shellcheck source=../lib/adapters/hitl/_registry.sh
 source "$SPARC_PKG_ROOT/lib/adapters/hitl/_registry.sh"
 
@@ -198,8 +200,22 @@ Steps:
      sparc_kanban_complete ${SPARC_BOARD} ${task_id}
 "
 
-    nohup "$SPARC_HERMES_BIN" -p "$profile" chat -q "$prompt" \
-      >> "$LOG_DIR/sparc-stage-$stage-$task_id.log" 2>&1 &
+    # v0.2.0 story 5: per-stage model routing. Look up the configured
+    # model for this stage from ./sparc.config.yaml (if present). If
+    # not configured, fall back to the profile's default model — i.e.
+    # don't pass --model at all (hermes uses its active profile's model).
+    local model="" config="${SPARC_CONFIG:-./sparc.config.yaml}"
+    if [[ -f "$config" ]]; then
+      model=$(sparc_config_models_get "$config" "$stage" 2>/dev/null || true)
+    fi
+
+    if [[ -n "$model" ]]; then
+      nohup "$SPARC_HERMES_BIN" -p "$profile" --model "$model" chat -q "$prompt" \
+        >> "$LOG_DIR/sparc-stage-$stage-$task_id.log" 2>&1 &
+    else
+      nohup "$SPARC_HERMES_BIN" -p "$profile" chat -q "$prompt" \
+        >> "$LOG_DIR/sparc-stage-$stage-$task_id.log" 2>&1 &
+    fi
     echo $! > "$LOG_DIR/sparc-stage-$stage-$task_id.pid"
   done < <(sparc_kanban_watch_ready "$SPARC_BOARD")
 
