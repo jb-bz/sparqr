@@ -183,7 +183,7 @@ Each release below lists its stories as a numbered list with story points. At th
 
 1. **Event-driven polling** (gap 1.1) — **2 pts** (revised from 8 pts after design spike). Reduce poll interval from 3s to 250ms (configurable via `SPARC_POLL_INTERVAL_SEC` env var). Hermes Kanban already maintains a `task_events` SQLite table (verified during spike on 2026-06-19) that records every state change with a kind, payload, and timestamp — the trigger + sidecar design from the original 8-pt estimate is unnecessary because Hermes is already giving us the events. Bonus: `sparc events <task-id>` reads `task_events` directly for "what just happened?" debugging.
 2. ~~**Kanban CLI compat shim** (gap 1.2) — **8 pts**. Try modern verbs, fall back to legacy. Log warnings. Catches Hermes CLI renames automatically. Includes unit tests for each verb-mapping.~~ **RE-SCOPED to 2 pts** (see below).
-3. **Stale-task reaper** (gap 1.9) — **5 pts**. Tasks in `running` for >5 ticks with dead PID → re-queue as `ready` with a `[REAPED]` comment. Per-task `failure_limit` to bound retries (default 2).
+3. **Stale-task reaper** (gap 1.9) — **5 pts**. Tasks in `running` for >5 ticks with dead PID → re-queue as `ready` with a `[REAPED]` comment. Per-task `failure_limit` to bound retries (default 2). ✅ **Done** — commits `da4fa34` (lib + tests) and `1c8b699` (orchestrator integration).
 4. **Reviewer checklist skill** (gap 1.4) — **5 pts**. `sparc-reviewer-checklist` skill that teaches the reviewer agent to verify artifact against spec's acceptance criteria, post structured review, then `kanban_block` with the review as reason.
 5. **Per-stage model routing** — **5 pts**. `sparc.config.yaml` gains:
    ```yaml
@@ -220,10 +220,16 @@ Each release below lists its stories as a numbered list with story points. At th
 
 - ✅ Story 1: event-driven polling (2 pts) — commit `56e257c`
 - ✅ Story 2 (re-scoped): Hermes version compatibility (2 pts) — commit `bbee96f`
+- ✅ Story 3: Stale-task reaper (5 pts) — commits `da4fa34` + `1c8b699`
 - ✅ Story 7: CI workflow (3 pts) — commit `2bd075d`
 - ✅ Story 8: prerequisites check (3 pts) — commit `8285ee4`
 - ✅ Story 9: single-user story documented (1 pt) — commit `6171891`
-- **Remaining: 29 pts** (stories 3, 4, 5, 6 — 5+5+5+14=29 pts total)
+- **Remaining: 24 pts** (stories 4, 5, 6 — 5+5+14=24 pts total)
+
+**Test growth:**
+- v0.1.0 baseline: 111 tests
+- v0.2.0 stories 1, 7, 8, 9: +17 tests (128 total)
+- v0.2.0 story 3: +24 tests (152 total)
 
 ---
 
