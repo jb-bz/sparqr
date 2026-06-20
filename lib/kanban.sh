@@ -76,10 +76,15 @@ sparc_kanban_board_init() {
 # sparc_kanban_create_task <board> <stage> <title> [parent_task_id]
 # Creates a task on the board. Title is auto-prefixed with [STAGE].
 # Returns the new task ID on stdout.
+#
+# Real Hermes syntax: `kanban --board X create <title> [--parent Y]`
+# - title is POSITIONAL, not a --title flag
+# - new tasks default to `todo` status; no --status flag
+# - output is "Created t_<id>  (status, assignee=...)"
 sparc_kanban_create_task() {
   local board="$1" stage="$2" title="$3" parent="${4:-}"
   local prefixed="[$([ "$stage" = "spec" ] && echo "SPEC" || echo "$(echo "$stage" | tr '[:lower:]' '[:upper:]' | sed 's/^./\U&/')")] $title"
-  local args=(kanban --board "$board" create --title "$prefixed" --status todo)
+  local args=(kanban --board "$board" create "$prefixed")
   if [[ -n "$parent" ]]; then
     args+=(--parent "$parent")
   fi
@@ -90,9 +95,9 @@ sparc_kanban_create_task() {
     echo "sparc_kanban_create_task: failed (rc=$rc): $out" >&2
     return $rc
   fi
-  # The CLI prints the new task ID on the last line, prefixed with "id: " or
-  # similar. Try a few common patterns.
-  echo "$out" | grep -oE 'task[_ -]?id[: ]+[A-Za-z0-9_-]+' | head -n1 | awk '{print $NF}' \
+  # Real Hermes output: "Created t_f64d3191  (ready, assignee=-)"
+  # Extract the t_<id> token.
+  echo "$out" | grep -oE '\bt_[A-Za-z0-9_-]+' | head -n1 \
     || echo "$out" | tail -n1
 }
 
@@ -106,12 +111,49 @@ sparc_kanban_link() {
 }
 
 # sparc_kanban_set_status <board> <task_id> <status>
-# Sets the task's status. The hermes kanban CLI uses "set" or "update" depending
-# on version; try set first, fall back to update.
+#
+#   Sets the task's status. Dispatches to the right real-Hermes verb:
+#     ready    -> hermes kanban --board X promote TASK [reason]
+#     done     -> hermes kanban --board X complete TASK
+#     blocked  -> hermes kanban --board X block TASK [reason]
+#     archived -> hermes kanban --board X archive TASK [reason]
+#     running  -> hermes kanban --board X claim TASK (sets claim TTL)
+#
+#   The legacy `set`/`update --status` verbs do NOT exist on real Hermes.
+#   They were placeholders that happened to pass the (also-placeholder)
+#   mock layer in v0.1.0/v0.2.0. This dispatcher is the single point of
+#   truth for status changes.
+#
+#   v0.2.0's lib/kanban.sh was written without running against real
+#   Hermes; the `set`/`update` verbs were assumed to exist. They
+#   don't. Real Hermes uses one verb per status transition.
 sparc_kanban_set_status() {
   local board="$1" task="$2" status="$3"
-  "$SPARC_HERMES_BIN" kanban --board "$board" set "$task" --status "$status" 2>/dev/null \
-    || "$SPARC_HERMES_BIN" kanban --board "$board" update "$task" --status "$status" 2>&1
+  case "$status" in
+    ready)
+      "$SPARC_HERMES_BIN" kanban --board "$board" promote "$task" 2>&1
+      ;;
+    done)
+      "$SPARC_HERMES_BIN" kanban --board "$board" complete "$task" 2>&1
+      ;;
+    blocked)
+      "$SPARC_HERMES_BIN" kanban --board "$board" block "$task" "[BLOCKED by sparc-pipeline]" 2>&1
+      ;;
+    archived)
+      "$SPARC_HERMES_BIN" kanban --board "$board" archive "$task" 2>&1
+      ;;
+    running)
+      # Claim with default TTL (15 min). Real Hermes transitions to running
+      # via `claim`. The TTL handles crash recovery automatically — if the
+      # worker dies, the claim expires and the task goes back to ready.
+      # This is BETTER than v0.2.0's hand-rolled PID-based reaper.
+      "$SPARC_HERMES_BIN" kanban --board "$board" claim "$task" 2>&1
+      ;;
+    *)
+      echo "sparc_kanban_set_status: unknown status: $status" >&2
+      return 64  # EX_USAGE
+      ;;
+  esac
 }
 
 # sparc_kanban_comment <board> <task_id> <comment>

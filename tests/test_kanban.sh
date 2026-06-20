@@ -79,8 +79,8 @@ fi
 # ── complete sets status to done ──────────────────────────────────────
 hdr "complete sets status to done"
 out=$(sparc_kanban_complete "test-board" "TASK-001" 2>&1) || true
-if echo "$out" | grep -qE "(set|update) .* --status done"; then
-  ok "complete set status=done"
+if echo "$out" | grep -qE "complete TASK-001"; then
+  ok "complete called the right verb"
 else
   fail "complete output: $out"
 fi
