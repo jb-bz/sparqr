@@ -24,7 +24,7 @@
 #   the call here breaks. Detection happens two ways:
 #     1. Integration tests in tests/integration/ (v0.2.0 story 6) run
 #        against real Hermes and catch the breakage on every PR.
-#     2. The `set`/`update` dual-verb fallback in sparc_kanban_set_status
+#     2. The `set` → `update` dual-verb fallback in sparc_kanban_set_status
 #        below covers the one known historical rename.
 #
 #   If you upgrade Hermes and a verb breaks, the fix is to update the
@@ -32,12 +32,18 @@
 #   tests/integration/ that fails with the new verb and update the
 #   code accordingly.
 #
-#   TESTED_AGAINST: Hermes 0.51.0 (verified working as of v0.1.0).
-#   Last verified: 2026-06-17.
-#   Compatible-with: Hermes 0.6.0+ (this package's minimum).
-#   Known-quirks: sparc_kanban_set_status falls back from `set` to
-#   `update` because Hermes has had both verbs at different points in
-#   its history. Other functions assume their primary verb is current.
+#   TESTED_AGAINST: Hermes Agent v0.17.0 (2026-06-19 build, upstream
+#                   5a53e0f0). Verified by smoke test on 2026-06-19:
+#                   board_init, create_task, link, claim (running),
+#                   complete (done), block (with reason), promote
+#                   (ready), archive, comment all work end-to-end.
+#   Last verified: 2026-06-19.
+#   Minimum compatible: Hermes v0.17.0 (this is the version we tested
+#                    against). Earlier versions may use a different
+#                    verb set; not verified.
+#   Re-verification: when upgrading Hermes, re-run tests/integration/
+#                    with RECORD_REPLAY_MODE=record. Update this comment
+#                    only after the recordings succeed.
 
 # Guard against double-sourcing
 if [[ -n "${SPARC_KANBAN_LOADED:-}" ]]; then
@@ -218,18 +224,22 @@ sparc_kanban_watch_running() {
 # Prints the recent event log for a task, oldest first.
 # Each line: <id>\t<created_at_human>\t<kind>\t<payload_excerpt>
 # Useful for "what just happened to this task?" debugging.
+#
+# Real Hermes stores task events in a SQLite DB. We find the path
+# via `kanban boards show <slug>` (which prints `DB path:`) instead
+# of parsing `boards list` output (which doesn't include paths).
 sparc_kanban_event_log() {
   local board="$1" task_id="$2"
   local limit=50
   [[ "${3:-}" == "--limit" && -n "${4:-}" ]] && limit="$4"
 
-  # Find the board's DB path via the CLI
+  # Find the board's DB path via `boards show`
   local db_path
-  db_path=$("$SPARC_HERMES_BIN" kanban boards list 2>/dev/null \
-    | awk -v b="$board" '$1 == b { print $2; exit }')
-  # Fallback: use the standard layout
+  db_path=$("$SPARC_HERMES_BIN" kanban boards show "$board" 2>/dev/null \
+    | awk -F': *' '/^  DB path:/ { print $2; exit }')
+  # Fallback: try the default-board layout
   if [[ -z "$db_path" || ! -f "$db_path" ]]; then
-    db_path="$HOME/.hermes/kanban/boards/$board/kanban.db"
+    db_path="$HOME/.hermes/kanban.db"
   fi
   [[ -f "$db_path" ]] || { echo "sparc_kanban_event_log: db not found for board '$board'" >&2; return 1; }
 
