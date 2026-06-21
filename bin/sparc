@@ -165,6 +165,8 @@ Commands:
               Usage: sparc config {validate|show|schema} [path]
   reconciler  Sync disk artifacts to kanban comment threads
               Usage: sparc reconciler {run-once|daemon|status}
+  logrotate   Rotate sparc-pipeline.log when it exceeds size threshold
+              Usage: sparc logrotate [LOG_DIR] [--max-size BYTES] [--keep N]
   version     Print the package version
   help        Print this help
 
@@ -191,6 +193,7 @@ case "$cmd" in
   status)      exec "$SPARC_PKG_ROOT/bin/sparc-status" "$@" ;;
   config)      exec "$SPARC_PKG_ROOT/bin/sparc-config" "$@" ;;
   reconciler)  exec "$SPARC_PKG_ROOT/bin/sparc-reconciler" "$@" ;;
+  logrotate)   exec "$SPARC_PKG_ROOT/bin/sparc-logrotate" "$@" ;;
   events)      sparc_cmd_events "$@" ;;
   adapters)    sparc_cmd_adapters "$@" ;;
   stages)      sparc_cmd_stages "$@" ;;

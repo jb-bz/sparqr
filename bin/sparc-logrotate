@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# bin/sparc-logrotate — Log rotation for sparc-pipeline.log (v0.3.0 story 7).
+#
+# Usage:
+#   sparc logrotate [LOG_DIR] [--max-size BYTES] [--keep N]
+#
+# Defaults: max-size=50M (50*1024*1024 bytes), keep=5 rotations.
+# Rotated logs are gzipped (sparc-pipeline.log.1.gz, .2.gz, ...).
+#
+# Suitable for cron or systemd timer. Idempotent: running multiple
+# times in a row when no rotation is needed is a no-op.
+#
+# Why bash + not logrotate: logrotate needs root for /etc config and
+# is overkill for a single user-dir log file. Bash does it in 50
+# lines with no extra deps.
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Defaults
+DEFAULT_LOG_DIR="${SPARC_LOG_DIR:-./logs}"
+DEFAULT_MAX_SIZE=$((50 * 1024 * 1024))   # 50 MB
+DEFAULT_KEEP=5
+
+# Args
+LOG_DIR="$DEFAULT_LOG_DIR"
+MAX_SIZE="$DEFAULT_MAX_SIZE"
+KEEP="$DEFAULT_KEEP"
+# Manual arg parsing instead of `for arg in "$@"` + `shift` because
+# bash's `shift` inside a `for` loop interacts badly with the loop's
+# own iteration over "$@" (same bug we hit in bin/sparc-status).
+i=1
+while [[ $i -le $# ]]; do
+  arg="${!i}"
+  case "$arg" in
+    --max-size)      i=$((i + 1)); MAX_SIZE="${!i:-$DEFAULT_MAX_SIZE}" ;;
+    --max-size=*)    MAX_SIZE="${arg#--max-size=}" ;;
+    --keep)          i=$((i + 1)); KEEP="${!i:-$DEFAULT_KEEP}" ;;
+    --keep=*)        KEEP="${arg#--keep=}" ;;
+    -h|--help)
+      cat <<'EOF'
+sparc logrotate — Rotate sparc-pipeline.log when it grows too big.
+
+Usage:
+  sparc logrotate [LOG_DIR] [--max-size BYTES] [--keep N]
+
+Defaults: log dir = ./logs, max size = 50 MB, keep 5 rotations.
+Rotated logs are gzipped (.gz suffix).
+
+Exit codes:
+  0 — no rotation needed (or rotation completed successfully)
+  1 — error
+  2 — rotation triggered (signal to caller that log was rotated)
+EOF
+      exit 0
+      ;;
+    *)
+    # Positional: treat as log dir if it looks like a path
+    if [[ -d "$arg" || "$arg" == */* ]]; then
+      LOG_DIR="$arg"
+    else
+      echo "sparc logrotate: unknown arg: $arg" >&2
+      exit 2
+    fi
+    ;;
+    esac
+    i=$((i + 1))
+    done
+
+# Parse human-friendly sizes like "50M", "100K", "1G"
+parse_size() {
+  local size="$1"
+  case "$size" in
+    *K|*k) echo $(( ${size%[Kk]} * 1024 )) ;;
+    *M|*m) echo $(( ${size%[Mm]} * 1024 * 1024 )) ;;
+    *G|*g) echo $(( ${size%[Gg]} * 1024 * 1024 * 1024 )) ;;
+    *) echo "$size" ;;
+  esac
+}
+MAX_SIZE=$(parse_size "$MAX_SIZE")
+
+LOG_FILE="$LOG_DIR/sparc-pipeline.log"
+
+if [[ ! -f "$LOG_FILE" ]]; then
+  echo "  ! no log file at $LOG_FILE; nothing to rotate"
+  exit 0
+fi
+
+# Get current size (cross-platform: macOS uses -f%z, Linux uses -c%s)
+if [[ "$(uname)" == "Darwin" ]]; then
+  size=$(stat -f%z "$LOG_FILE")
+else
+  size=$(stat -c%s "$LOG_FILE")
+fi
+
+if [[ "$size" -lt "$MAX_SIZE" ]]; then
+  echo "  log size $(($size / 1024))K < threshold $(($MAX_SIZE / 1024))K; no rotation"
+  exit 0
+fi
+
+# Rotation needed. Strategy:
+#   sparc-pipeline.log         → sparc-pipeline.log.1.gz
+#   sparc-pipeline.log.1.gz    → sparc-pipeline.log.2.gz
+#   sparc-pipeline.log.2.gz    → sparc-pipeline.log.3.gz
+#   ...up to N. The oldest is deleted.
+# Note: we truncate the live log file (don't move/gzip it) because
+# the pipeline might still have an open file handle pointing at the
+# inode. Moving would lose the writes; truncating preserves the
+# inode so the next write lands at offset 0 of the same file.
+echo "  rotating $LOG_FILE (size $(($size / 1024))K > $(($MAX_SIZE / 1024))K)"
+
+# Step 1: shift existing rotations, oldest first.
+# For i from KEEP down to 2:
+#   - If .(i).gz exists, delete it (it's the oldest, being pushed off)
+#   - If .(i-1).gz exists, move it to .i.gz
+# This guarantees that after the loop, slot 1 is free for the new
+# rotation regardless of how many existing rotations there are.
+for ((i=KEEP; i>=2; i--)); do
+  dst="$LOG_FILE.$i.gz"
+  prev=$((i - 1))
+  if [[ "$prev" -eq 0 ]]; then
+    src="$LOG_FILE"          # the live log
+  else
+    src="$LOG_FILE.$prev.gz" # a previous rotation
+  fi
+  if [[ -f "$dst" ]]; then
+    rm -f "$dst"
+    echo "  deleted oldest: $dst"
+  fi
+  if [[ -f "$src" ]]; then
+    mv "$src" "$dst"
+    echo "  rotated: $src → $dst"
+  fi
+done
+
+# Step 2: gzip the live log content into .1.gz.
+# We don't move the live file itself (its inode might be open by
+# the pipeline). We compress a snapshot into .1.gz, then truncate
+# the live file (preserving the inode so subsequent writes land at
+# offset 0).
+if [[ -f "$LOG_FILE" ]]; then
+  gzip -c < "$LOG_FILE" > "$LOG_FILE.1.gz.tmp" \
+    && mv "$LOG_FILE.1.gz.tmp" "$LOG_FILE.1.gz"
+  echo "  rotated: $LOG_FILE → $LOG_FILE.1.gz (gzip)"
+fi
+
+# Step 3: truncate the live log file. The pipeline's next write
+# goes at offset 0 of the same inode.
+: > "$LOG_FILE"
+echo "  truncated: $LOG_FILE"
+
+exit 2  # signal that rotation occurred
