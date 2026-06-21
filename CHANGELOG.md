@@ -72,14 +72,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for v0.3.0 ("Make it pleasant")
-- Structured HITL gate types (approval / confidence / sampling / exception) — 13 pts, must be split
-- `sparc status` command — 3 pts
-- Artifact reconciler — 5 pts
-- Log rotation — 2 pts
-- JSON schema for `sparc.config.yaml` — 3 pts
+### Planned for v0.4.0 ("Make it adoptable")
+- `sparc new` interactive project template (5 pts)
+- Hosted demo via `sparqr.sh` script (8 pts)
+- Local web dashboard (`sparc-dashboard` service, 13 pts — must split)
+- Chat-gateway notify channels (Telegram/Discord/Slack/Signal, 5 pts)
+- Video walkthrough (2 pts)
+- Tutorial repo (3 pts)
 
-See `ROADMAP.md` Part 3 for the full v0.3.0 plan.
+See `ROADMAP.md` Part 3 for the full v0.4.0 plan.
+
+## [0.3.0] - 2026-06-21
+
+### Added
+- **`sparc status` command** — Cross-pipeline observability. Shows all boards and task counts (ready/todo/running/blocked/done/archived); per-board running tasks with PID + age; per-board blocked tasks. Supports `--board <slug>` filter and `--json` output.
+- **Structured HITL gate types** (4 gate types in one schema) — `gates: {stage: {type: ..., ...}}` configuration:
+  - `approval` (default) — human must approve explicitly (v0.2.0 behavior)
+  - `confidence` — auto-approve if `[CONFIDENCE=X]` comment ≥ threshold (default 0.9)
+  - `sampling` — auto-approve (100-percent)% of the time (default 10%)
+  - `exception` — auto-approve unless `[REVIEWER_FLAG]/[BLOCKED]/[REJECT]` in comments
+- **JSON Schema for `sparc.config.yaml`** — `docs/config-schema.json` (JSON Schema 2020-12). New `sparc config validate` command validates against the schema; gracefully degrades if `jsonschema` Python module not installed.
+- **`sparc config show`** — Pretty-prints parsed config (board, hitl_adapter, profiles, models, gates).
+- **Artifact reconciler** — `sparc reconciler run-once|daemon|status` syncs disk artifacts to kanban comment threads. Idempotent (content-hash dedup via local state file). Solves the "crash between artifact-write and publish" problem.
+- **Log rotation** — `sparc logrotate` rotates `sparc-pipeline.log` when it exceeds size threshold (default 50MB). Keeps last 5 rotations, gzipped. Suitable for cron / systemd timer.
+
+### Changed
+- **Orchestrator is gate-aware** — pass 1 (blocked handling) consults `sparc_gate_resolve_blocked` before surfacing to the human. If the gate says auto-approve, marks done and skips HITL. Default config (no gates section) falls through to v0.2.0 behavior.
+- **Stage agent prompts are gate-aware** — pass 2 (spawn) uses `sparc_gate_prompt_instructions` to tell the agent whether to mark blocked, complete, or post a `[CONFIDENCE=X]` comment.
+
+### Tests
+- 319 unit tests pass (was 285 in v0.2.1; +34)
+- 11 integration test assertions pass (unchanged)
+
+[0.3.0]: https://github.com/jb-bz/sparqr/releases/tag/v0.3.0
+
+[Unreleased]: https://github.com/jb-bz/sparqr/compare/v0.3.0...HEAD
 
 ## [0.2.1] - 2026-06-20
 

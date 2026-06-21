@@ -446,4 +446,4 @@ Things I'd want your input on before finalizing:
 
 ---
 
-*End of roadmap document. Last review: 2026-06-19. Next review: when v0.2.0 ships, with the v0.2.0 retrospective appended.*
+*End of roadmap document. Last review: 2026-06-21. Next review: when v0.4.0 ships, with the v0.4.0 retrospective appended.*
