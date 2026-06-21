@@ -72,10 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for v0.2.1
-- Record real Hermes sessions for integration test framework
-- Re-enable the Docker-based CI workflow section once a Hermes Docker image is published
-
 ### Planned for v0.3.0 ("Make it pleasant")
 - Structured HITL gate types (approval / confidence / sampling / exception) — 13 pts, must be split
 - `sparc status` command — 3 pts
@@ -85,4 +81,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 See `ROADMAP.md` Part 3 for the full v0.3.0 plan.
 
-[Unreleased]: https://github.com/jb-bz/sparqr/compare/v0.2.0...HEAD
+## [0.2.1] - 2026-06-20
+
+### Fixed
+- **Critical bug from v0.2.0**: `lib/*.sh` files had sentinel-var guards against double-sourcing. Bash functions don't carry over `exec` boundaries, but env vars do. So `bin/sparc`'s `exec` of subcommand scripts lost function definitions. **Every `sparc <subcommand>` was failing in production with "command not found" errors.** The 237 unit tests passed because they source libs directly without going through the dispatcher. This bug was masked in unit tests; v0.2.1's integration testing caught it.
+- **`lib/kanban.sh` matched a hypothetical Hermes CLI, not real Hermes.** Real Hermes v0.17.0 uses `promote`/`complete`/`block`/`archive`/`claim` for status changes (not `set`/`update --status`) and `create <title>` with positional title (not `--title`). All status transitions and task creation now use real verbs.
+- **`[UREFINEMENT]` stage-prefix bug**: bash 3.2's `sed 's/^./\U&/'` produces literal `\U` instead of `UREFINEMENT`. Replaced with portable awk.
+
+### Added
+- **Real-Hermes-verified integration tests**: 3 tests, 11 assertions total:
+  - `test_setup_against_hermes.sh` — board init + DAG creation
+  - `test_single_stage_run.sh` — state transitions (claim/complete)
+  - `test_two_stage_pipeline.sh` — parent → child DAG with completion
+- **Record-replay harness actually works end-to-end** (v0.2.0's was broken in 6 ways; v0.2.1 fixed them all).
+- **Container runtime selection in `setup.sh`**: new step 5/7 asks docker/orbstack/none; persists choice as `SPARC_RUNTIME`.
+- **CI integration step uncommented** with graceful degradation: runs replay-mode tests, attempts re-recording if Docker is available, skips cleanly otherwise.
+
+### Changed
+- **`TESTED_AGAINST` comment** in `lib/kanban.sh` now reads "Hermes Agent v0.17.0 (2026-06-19 build, upstream 5a53e0f0)" — verified by smoke test, not a placeholder.
+- **CI workflow** uses `SPARC_RUNTIME` env var with default 'docker'; users can override via repo variable.
+
+### Tests
+- 237 unit tests pass (unchanged from v0.2.0)
+- 11 integration test assertions pass (was 0 in v0.2.0)
+- Integration tests run in REPLAY mode by default (fast, no Docker); RECORD mode captures real Hermes output
+
+### Known limitations (carried forward)
+- Re-recording step in CI is a no-op until the official Hermes Docker image is published
+- v0.2.1 integration tests don't spawn real LLM agents (state transitions only); full orchestrator e2e is a v0.3.0+ candidate
+
+[0.2.1]: https://github.com/jb-bz/sparqr/releases/tag/v0.2.1
+
+[Unreleased]: https://github.com/jb-bz/sparqr/compare/v0.2.1...HEAD
