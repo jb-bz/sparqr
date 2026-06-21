@@ -93,10 +93,21 @@ sparc_kanban_board_init() {
 # Real Hermes syntax: `kanban --board X create <title> [--parent Y]`
 # - title is POSITIONAL, not a --title flag
 # - new tasks default to `todo` status; no --status flag
-# - output is "Created t_<id>  (status, assignee=...)"
+# Creates a task on the board. Title is auto-prefixed with [STAGE].
+# Stage name is uppercased and title-cased. Note: we use `awk` for the
+# first-character uppercase because bash 3.2 (macOS default) doesn't
+# reliably support GNU sed's `\U&` extension — it produces literal
+# `\UREFINEMENT` instead of `UREFINEMENT`. The awk equivalent is
+# portable across bash 3.2+ and 4+.
 sparc_kanban_create_task() {
   local board="$1" stage="$2" title="$3" parent="${4:-}"
-  local prefixed="[$([ "$stage" = "spec" ] && echo "SPEC" || echo "$(echo "$stage" | tr '[:lower:]' '[:upper:]' | sed 's/^./\U&/')")] $title"
+  local stage_label
+  if [[ "$stage" == "spec" ]]; then
+    stage_label="SPEC"
+  else
+    stage_label=$(echo "$stage" | tr '[:lower:]' '[:upper:]' | awk '{ print toupper(substr($0,1,1)) substr($0,2) }')
+  fi
+  local prefixed="[$stage_label] $title"
   local args=(kanban --board "$board" create "$prefixed")
   if [[ -n "$parent" ]]; then
     args+=(--parent "$parent")

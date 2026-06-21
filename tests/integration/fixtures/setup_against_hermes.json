@@ -33,7 +33,7 @@
       "create",
       "[SPEC] test goal"
     ],
-    "stdout": "Created t_ad727988  (ready, assignee=-)",
+    "stdout": "Created t_0ececc66  (ready, assignee=-)",
     "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
     "exit_code": 0
   },
@@ -43,11 +43,11 @@
       "--board",
       "sparqr-itest-replay",
       "create",
-      "[UREFINEMENT] test refinement",
+      "[REFINEMENT] test refinement",
       "--parent",
-      "t_ad727988"
+      "t_0ececc66"
     ],
-    "stdout": "Created t_f05f3bcf  (todo, assignee=-)",
+    "stdout": "Created t_4e06bd6c  (todo, assignee=-)",
     "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
     "exit_code": 0
   },
@@ -57,10 +57,10 @@
       "--board",
       "sparqr-itest-replay",
       "link",
-      "t_ad727988",
-      "t_f05f3bcf"
+      "t_0ececc66",
+      "t_4e06bd6c"
     ],
-    "stdout": "Linked t_ad727988 -> t_f05f3bcf",
+    "stdout": "Linked t_0ececc66 -> t_4e06bd6c",
     "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
     "exit_code": 0
   },
@@ -70,10 +70,10 @@
       "--board",
       "sparqr-itest-replay",
       "comment",
-      "t_ad727988",
+      "t_0ececc66",
       "[ITEST] spec task created"
     ],
-    "stdout": "Comment added to t_ad727988",
+    "stdout": "Comment added to t_0ececc66",
     "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
     "exit_code": 0
   }
