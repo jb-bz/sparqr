@@ -39,6 +39,8 @@ source "$SPARC_PKG_ROOT/lib/validators.sh"
 source "$SPARC_PKG_ROOT/lib/reaper.sh"
 # shellcheck source=../lib/config.sh
 source "$SPARC_PKG_ROOT/lib/config.sh"
+# shellcheck source=../lib/gates.sh
+source "$SPARC_PKG_ROOT/lib/gates.sh"
 # shellcheck source=../lib/adapters/hitl/_registry.sh
 source "$SPARC_PKG_ROOT/lib/adapters/hitl/_registry.sh"
 
@@ -129,6 +131,23 @@ once_tick() {
     stage=$(echo "$title" | sed -nE 's/^\[([A-Za-z]+)\].*/\L\1/p')
     [[ -z "$stage" ]] && stage="unknown"
 
+    # v0.3.0 story 1: gate-type decision. Some gate types (confidence,
+    # sampling, exception) can auto-approve without human review. We
+    # consult lib/gates.sh's decision function before surfacing to
+    # the human. The default config (no gates section) falls through
+    # to "needs human" — same as v0.2.0.
+    local gate_decision=""
+    if [[ -f "$SPARC_CONFIG" ]]; then
+      gate_decision=$(sparc_gate_resolve_blocked "$SPARC_CONFIG" "$SPARC_BOARD" "$task_id" "$stage" 2>/dev/null || echo "needs-human")
+    fi
+    [[ -z "$gate_decision" ]] && gate_decision="needs-human"
+
+    if [[ "$gate_decision" == "auto-approve" ]]; then
+      echo "[$(date -u +%H:%M:%S)] HITL auto-approve (gate): task=$task_id stage=$stage"
+      sparc_kanban_unblock "$SPARC_BOARD" "$task_id" "auto-approved by gate"
+      continue
+    fi
+
     local artifact=""
     artifact=$(sparc_artifact_latest "$SPARC_BOARD" "$stage" 2>/dev/null || true)
     [[ -z "$artifact" ]] && artifact="./docs/sparc/$SPARC_BOARD/$stage/$task_id.md"
@@ -174,6 +193,16 @@ once_tick() {
 
     sparc_kanban_set_status "$SPARC_BOARD" "$task_id" "running" || true
 
+    # v0.3.0 story 1: gate-type instructions for the agent. The agent
+    # needs to know whether to mark blocked (and post a [CONFIDENCE=X]
+    # if applicable) or mark complete. Default config falls back to
+    # the v0.2.0 prompt (approval-style).
+    local gate_instructions=""
+    if [[ -f "$config" ]]; then
+      gate_instructions=$(sparc_gate_prompt_instructions "$config" "$stage" 2>/dev/null || true)
+    fi
+    [[ -z "$gate_instructions" ]] && gate_instructions="(no gate instructions — use v0.2.0 behavior: mark blocked if review needed, complete otherwise)"
+
     local prompt
     prompt="You are the SPARC+Design stage agent for stage: ${stage}
 Task ID: ${task_id}
@@ -192,12 +221,11 @@ Steps:
   5. Publish via:
      source ${SPARC_PKG_ROOT}/lib/artifacts.sh
      sparc_artifact_publish ${SPARC_BOARD} ${stage} ${task_id} '<your artifact markdown>'
-  6. If this stage requires HITL review, mark blocked:
-     source ${SPARC_PKG_ROOT}/lib/kanban.sh
-     sparc_kanban_block ${SPARC_BOARD} ${task_id} '<one-line summary of what to review>'
-     (The orchestrator daemon will surface the review to the human.)
-  7. If no review required, mark complete:
-     sparc_kanban_complete ${SPARC_BOARD} ${task_id}
+
+${gate_instructions}
+
+  After publishing, mark the task done/blocked as the gate instructions
+  above specify.
 "
 
     # v0.2.0 story 5: per-stage model routing. Look up the configured
