@@ -1,0 +1,33 @@
+{
+  "//": "sparqr dev container (v0.4.0 story 2). Lets GitHub Codespaces bring up the full sparqr stack with one click.",
+  "name": "sparqr",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "tamasfe.even-better-toml",
+        "redhat.vscode-yaml"
+      ]
+    }
+  },
+  "forwardPorts": [8787, 3000, 9119],
+  "portsAttributes": {
+    "8787": {
+      "label": "Hermes webui",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "Hermes workspace",
+      "onAutoForward": "notify"
+    },
+    "9119": {
+      "label": "Hermes dashboard",
+      "onAutoForward": "notify"
+    }
+  },
+  "postStartCommand": "./demo/sparqr.sh up"
+}

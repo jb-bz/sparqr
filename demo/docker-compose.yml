@@ -1,0 +1,72 @@
+# demo/docker-compose.yml — Hosted demo stack (v0.4.0 story 2).
+#
+# Brings up the full sparqr + Hermes stack in containers. Works with
+# Docker (most users) and OrbStack (faster on macOS — recommended).
+# Run via ./demo/sparqr.sh up / down / logs / status.
+#
+# What this stack does:
+#   1. hermes container — the Hermes CLI daemon + webui
+#   2. sparqr container — runs `sparc pipeline start` against the
+#      hermes container, executing the SPARC pipeline for the demo
+#      project (mounted from ./demo-project/)
+#   3. demo-project volume — a small project with all 4 templates'
+#      configs visible, so users can see how to use sparqr
+#
+# After `docker compose up`, visit http://localhost:8787 (hermes webui)
+# to see the demo project running through the pipeline.
+
+services:
+  hermes:
+    image: hermesorg/hermes:0.17.0   # official Hermes image
+    container_name: sparqr-demo-hermes
+    ports:
+      - "8787:8787"   # hermes webui
+    volumes:
+      - hermes-data:/root/.hermes
+    environment:
+      # BSM is optional; the demo doesn't need GitHub secrets.
+      # Users can configure BSM after the stack is up.
+      - HERMES_LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "hermes", "--version"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sparqr:
+    # We build the sparqr image from the local Dockerfile.demo.
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile.demo
+    container_name: sparqr-demo-sparqr
+    depends_on:
+      hermes:
+        condition: service_healthy
+    volumes:
+      # Demo project mounted so users can see/edit configs in real time.
+      - ./demo-project:/demo-project:ro
+    environment:
+      # Tell sparqr where hermes is (the network alias).
+      - SPARC_HERMES_BIN=hermes
+      # The demo runs in non-interactive mode — pre-approved gates.
+      - SPARC_AUTO_APPROVE=true
+    # The demo's pipeline runs once and exits, showing the user what
+    # a full pipeline pass looks like. They can re-run with
+    # `sparqr.sh restart` or shell in and run `sparc pipeline start`.
+    command: >
+      bash -c "cd /demo-project &&
+               echo '=== sparqr demo ===' &&
+               echo 'Visit http://localhost:8787 to see Hermes webui' &&
+               echo '' &&
+               sparc status &&
+               echo '' &&
+               echo 'Starting pipeline (single pass)...' &&
+               sparc pipeline run-once &&
+               echo '' &&
+               echo 'Pipeline complete. Inspect Hermes webui for artifacts.' &&
+               echo 'Or run: docker exec -it sparqr-demo-sparqr bash' &&
+               sleep infinity"
+
+volumes:
+  hermes-data:
+    description: "Persists Hermes state across demo restarts"
