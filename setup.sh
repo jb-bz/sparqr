@@ -176,7 +176,65 @@ case ":$PATH:" in
   *) warn "$CLI_DEST_DIR is NOT on PATH. Add to ~/.zshrc or ~/.bashrc: export PATH=\"$CLI_DEST_DIR:\$PATH\"" ;;
 esac
 
-# ── 5. Probe HITL surfaces, ask the user ─────────────────────────────────
+# ── 5. Probe container runtime (for integration tests) ────────────────
+hdr "5/7" "Container runtime for integration tests"
+# The integration test framework (tests/integration/) optionally
+# brings up real Hermes in a container for re-recording sessions.
+# Default: Docker (the universal standard). OrbStack is faster on
+# macOS. "None" means skip the recording step — replay-only mode.
+#
+# We probe what's installed and recommend the best option. Users
+# can override.
+
+declare -A RUNTIME_STATUS
+for r in docker orbstack none; do
+  case "$r" in
+    docker)
+      if command -v docker >/dev/null 2>&1; then
+        RUNTIME_STATUS[$r]="available"
+      else
+        RUNTIME_STATUS[$r]="not-detected"
+      fi
+      ;;
+    orbstack)
+      # OrbStack has a docker-compatible CLI; check if it's actually
+      # installed (different from system Docker). The `orb` binary
+      # is the OrbStack-specific command; if it exists, OrbStack is
+      # installed. We also check `~/.orbstack` as a fallback marker.
+      if command -v orb >/dev/null 2>&1 || [[ -d "$HOME/.orbstack" ]]; then
+        RUNTIME_STATUS[$r]="available"
+      else
+        RUNTIME_STATUS[$r]="not-detected"
+      fi
+      ;;
+    none)
+      # Always available; user explicitly opts out.
+      RUNTIME_STATUS[$r]="available"
+      ;;
+  esac
+done
+
+echo "  Probed container runtimes:"
+for r in docker orbstack; do
+  st="${RUNTIME_STATUS[$r]:-unknown}"
+  case "$st" in
+    available)    printf "    \033[32m●\033[0m %-12s detected\n" "$r" ;;
+    not-detected) printf "    \033[33m○\033[0m %-12s not found\n" "$r" ;;
+  esac
+done
+
+# Build the recommendation
+DEFAULT_RUNTIME="docker"
+[[ "${RUNTIME_STATUS[orbstack]}" == "available" ]] && DEFAULT_RUNTIME="orbstack"
+
+RUNTIME_CHOICE=$(ask "Container runtime for integration tests? (docker/orbstack/none)" "$DEFAULT_RUNTIME")
+RUNTIME_CHOICE="${RUNTIME_CHOICE,,}"  # lowercase
+ok "selected: $RUNTIME_CHOICE"
+
+# Persist as a config var that the integration tests can read
+export SPARC_RUNTIME="$RUNTIME_CHOICE"
+
+# ── 6. Probe HITL surfaces, ask the user ─────────────────────────────────
 hdr "6/7" "HITL adapter choice"
 # Source the registry to get the probe functions
 # shellcheck source=lib/adapters/hitl/_registry.sh
@@ -211,7 +269,7 @@ HITL_CHOICE=$(ask "Which HITL adapter? (terminal/tui/webui/workspace/official-da
 HITL_CHOICE="${HITL_CHOICE,,}"  # lowercase
 ok "selected: $HITL_CHOICE"
 
-# ── 6. Persist project template + run doctor ──────────────────────────────
+# ── 7. Persist project template + run doctor ──────────────────────────────
 hdr "7/7" "Per-project template + final check"
 if [[ -f "./sparc.config.yaml" ]]; then
   ok "sparc.config.yaml already exists in current dir (not overwriting)"
