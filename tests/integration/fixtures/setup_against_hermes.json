@@ -1,1 +1,80 @@
-[]
+[
+  {
+    "args": [
+      "kanban",
+      "boards",
+      "list"
+    ],
+    "stdout": "    SLUG                      NAME                          COUNTS\n\u25cf   default                   Default                       ready=1\n    sparc-sparqr-smoke-1782003742  SPARC: sparqr-smoke-1782003742  (empty)\n    sparc-sparqr-smoke-1782003837  SPARC: sparqr-smoke-1782003837  ready=1, todo=5\n    spike-test                Spike test                    archived=3\n\nCurrent board: default\nSwitch boards with `hermes kanban boards switch <slug>`.",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "boards",
+      "create",
+      "sparqr-itest-replay",
+      "--name",
+      "Integration Test Board",
+      "--icon",
+      "\ud83c\udfaf",
+      "--switch"
+    ],
+    "stdout": "Board 'sparqr-itest-replay' created.\n  Display name: Integration Test Board\n  DB path:      /Users/jolonbankey/.hermes/kanban/boards/sparqr-itest-replay/kanban.db\n  Switched to 'sparqr-itest-replay'.",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-replay",
+      "create",
+      "[SPEC] test goal"
+    ],
+    "stdout": "Created t_ad727988  (ready, assignee=-)",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-replay",
+      "create",
+      "[UREFINEMENT] test refinement",
+      "--parent",
+      "t_ad727988"
+    ],
+    "stdout": "Created t_f05f3bcf  (todo, assignee=-)",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-replay",
+      "link",
+      "t_ad727988",
+      "t_f05f3bcf"
+    ],
+    "stdout": "Linked t_ad727988 -> t_f05f3bcf",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-replay",
+      "comment",
+      "t_ad727988",
+      "[ITEST] spec task created"
+    ],
+    "stdout": "Comment added to t_ad727988",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  }
+]
