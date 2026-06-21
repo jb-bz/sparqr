@@ -159,6 +159,8 @@ Commands:
   doctor      Validate the package install
   adapters    List HITL adapters and notify channels
   stages      List configured stages
+  status      Cross-pipeline observability (boards, counts, running, blocked)
+              Usage: sparc status [--board <slug>] [--json]
   version     Print the package version
   help        Print this help
 
@@ -182,6 +184,7 @@ case "$cmd" in
   stage)       exec "$SPARC_PKG_ROOT/bin/sparc-stage" "$@" ;;
   hitl)        exec "$SPARC_PKG_ROOT/bin/sparc-hitl-watcher" "$@" ;;
   doctor)      exec "$SPARC_PKG_ROOT/bin/sparc-doctor" "$@" ;;
+  status)      exec "$SPARC_PKG_ROOT/bin/sparc-status" "$@" ;;
   events)      sparc_cmd_events "$@" ;;
   adapters)    sparc_cmd_adapters "$@" ;;
   stages)      sparc_cmd_stages "$@" ;;

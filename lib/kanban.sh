@@ -270,3 +270,43 @@ sparc_kanban_event_log() {
      ORDER BY id DESC
      LIMIT $limit;" 2>/dev/null
 }
+
+# sparc_kanban_list <board> <status>
+# Echoes the raw kanban list output for the given board and status.
+# Useful when callers need full task details (id, stage, title,
+# assignee) — not just the tab-separated view that watch_* returns.
+#
+# Output format (verified 2026-06-20 against real Hermes v0.17.0):
+#   Board: <slug> (N other boards ...)
+#
+#   ▶ t_<id>  ready     (unassigned)          [STAGE] title
+#   ✓ t_<id>  done      (reviewer)            [STAGE] title
+#   ⏸ t_<id>  blocked   (reviewer)            [STAGE] title
+#
+# Returns the raw output. Callers should parse it themselves; this
+# function is intentionally thin so it can be used both for human
+# display and for record-replay fixtures.
+sparc_kanban_list() {
+  local board="$1" status="${2:-}"
+  local args=(kanban --board "$board" list)
+  [[ -n "$status" ]] && args+=(--status "$status")
+  "$SPARC_HERMES_BIN" "${args[@]}" 2>/dev/null
+}
+
+# sparc_kanban_boards_list
+# Echoes one board per line, with the leading status marker
+# (●/○) and any trailing counts intact. Format (verified
+# 2026-06-20 against real Hermes v0.17.0):
+#
+#   SLUG                      NAME                          COUNTS
+#   ●   default               Default                       ready=1
+#       spike-test            Spike test                    archived=3
+#
+#   Current board: default
+#   Switch boards with `hermes kanban boards switch <slug>`.
+#
+# Callers parse the slug out of the first whitespace-separated
+# token on each non-header line.
+sparc_kanban_boards_list() {
+  "$SPARC_HERMES_BIN" kanban boards list 2>/dev/null
+}

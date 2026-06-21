@@ -1,0 +1,283 @@
+#!/usr/bin/env bash
+# bin/sparc-status — Cross-pipeline observability.
+#
+# Usage: sparc status [--board <slug>] [--json]
+#
+# Shows:
+# - All boards and their task counts (ready/todo/running/blocked/done)
+# - For each running task: stage, started-at, agent PID, time-in-stage
+# - For each blocked task: stage, when blocked, last reviewer comment
+# - High-level cost signal (running task count + blocked task count)
+#
+# Verified against real Hermes v0.17.0 output format:
+#   Board: <slug> (N other boards ...)
+#   ▶ t_<id>  <status>  (<assignee>)        [STAGE] <title>
+#
+# Data sources: hermes kanban (boards, lists), PID files in $SPARC_LOG_DIR,
+# kanban comment threads (sqlite3). Read-only; never mutates state.
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+# shellcheck source=../lib/kanban.sh
+source "$SPARC_PKG_ROOT/lib/kanban.sh"
+# We need sparc_kanban_event_log (in lib/kanban.sh — already sourced
+# above) and nothing else from the rest of the lib/ tree. Subcommand
+# scripts are exec'd from bin/sparc, which loses function definitions
+# across the exec boundary; sourcing here is the standard fix.
+
+# Args
+BOARD_FILTER=""
+JSON_OUTPUT=0
+# Manual arg parsing instead of `for arg in "$@"` + `shift` because
+# bash's `shift` inside a `for` loop interacts badly with the loop's
+# own iteration over "$@".
+i=1
+while [[ $i -le $# ]]; do
+  arg="${!i}"
+  case "$arg" in
+    --board)      i=$((i + 1)); BOARD_FILTER="${!i:-}" ;;
+    --board=*)    BOARD_FILTER="${arg#--board=}" ;;
+    --json)       JSON_OUTPUT=1 ;;
+    -h|--help)
+      cat <<'EOF'
+sparc status — Cross-pipeline observability
+
+Usage: sparc status [--board <slug>] [--json]
+
+Options:
+  --board <slug>  Limit output to one board
+  --json          Emit machine-readable JSON instead of pretty text
+  -h, --help      Show this help
+
+Reads kanban state via the Hermes CLI and PID files in $SPARC_LOG_DIR.
+No state is mutated. Safe to run while orchestrators are active.
+EOF
+      exit 0
+      ;;
+    *) echo "sparc status: unknown arg: $arg" >&2; exit 2 ;;
+  esac
+  i=$((i + 1))
+done
+
+# bash 3.2 (macOS default) doesn't have `mapfile`. Use a while-read
+# loop instead. Result goes into the ALL_BOARDS array.
+ALL_BOARDS=()
+while IFS= read -r board_slug; do
+  [[ -n "$board_slug" ]] && ALL_BOARDS+=("$board_slug")
+done < <(sparc_kanban_boards_list | awk '
+  # Match board data lines. Real Hermes v0.17.0 format:
+  #   ●   default                   Default                       ready=1
+  #   (whitespace)slug    (whitespace)name        (whitespace)counts
+  # Both current-board lines (with ●) and non-current-board lines
+  # (without marker) are data lines. We extract the slug as either
+  # the second field (when first field is "●"/"○") or the first field
+  # (no marker).
+  #
+  # Exclusion rules:
+  #   - First field is "SLUG" → header line
+  #   - First field is "Current" → footer (Current board: default)
+  #   - First field is "Switch" → footer (Switch boards with ...)
+  #   - Less than 3 whitespace-separated fields → not a data line
+  NF >= 3 && $1 != "SLUG" && $1 != "Current" && $1 != "Switch" {
+    slug = ($1 == "●" || $1 == "○") ? $2 : $1
+    if (slug ~ /^[a-zA-Z0-9_-]+$/) print slug
+  }')
+
+if [[ -n "$BOARD_FILTER" ]]; then
+  BOARDS=("$BOARD_FILTER")
+else
+  BOARDS=("${ALL_BOARDS[@]}")
+fi
+
+# ── 2. Per-board query ──────────────────────────────────────────────────
+# Output structure (in JSON mode):
+# {
+#   "boards": [
+#     {
+#       "slug": "default",
+#       "counts": {"ready": 1, "todo": 0, "running": 0, "blocked": 0, "done": 0},
+#       "running": [{"id": "t_xxx", "stage": "spec", "title": "...", "pid": 1234, "pid_alive": true, "age_seconds": 42}],
+#       "blocked": [{"id": "t_xxx", "stage": "design", "title": "...", "last_comment": "..."}]
+#     }
+#   ],
+#   "totals": {"ready": N, "todo": N, ...}
+# }
+
+declare -a RESULTS_JSON
+TOTALS_READY=0
+TOTALS_TODO=0
+TOTALS_RUNNING=0
+TOTALS_BLOCKED=0
+TOTALS_DONE=0
+TOTALS_ARCHIVED=0
+
+for board in "${BOARDS[@]}"; do
+  if [[ -z "$board" ]]; then continue; fi
+
+  # Get task counts by listing each status. Format:
+  # ▶ t_xxx  ready     (unassigned)          [STAGE] title
+  # Empty status: "(no matching tasks)" or just blank
+  count_for() {
+    local status="$1"
+    local out
+    out=$(sparc_kanban_list "$board" "$status" 2>/dev/null)
+    # Each task is one line starting with a status icon (▶ ✓ ✗ ⏸ etc)
+    # and containing "  $status  " (status name padded). Count those lines.
+    # Also exclude "Board:" header line and "no matching" empty marker.
+    echo "$out" | awk -v s="$status" '
+      /^Board:/ { next }
+      /no matching tasks/ { next }
+      /^[[:space:]]*[▶✓✗⏸⏵◀]/ && index($0, "  " s " ") > 0 { count++ }
+      END { print count+0 }
+    '
+  }
+
+  n_ready=$(count_for ready)
+  n_todo=$(count_for todo)
+  n_running=$(count_for running)
+  n_blocked=$(count_for blocked)
+  n_done=$(count_for done)
+  n_archived=$(count_for archived)
+
+  TOTALS_READY=$((TOTALS_READY + n_ready))
+  TOTALS_TODO=$((TOTALS_TODO + n_todo))
+  TOTALS_RUNNING=$((TOTALS_RUNNING + n_running))
+  TOTALS_BLOCKED=$((TOTALS_BLOCKED + n_blocked))
+  TOTALS_DONE=$((TOTALS_DONE + n_done))
+  TOTALS_ARCHIVED=$((TOTALS_ARCHIVED + n_archived))
+
+  # Running tasks: get details (PID, age, stage, title)
+  declare -a RUNNING_JSON
+  if [[ "$n_running" -gt 0 ]]; then
+    while IFS= read -r line; do
+      # Parse: "▶ t_<id>  running  (assignee)        [STAGE] title"
+      task_id=$(echo "$line" | awk '{print $2}')
+      stage=$(echo "$line" | grep -oE '\[[A-Z]+\]' | head -n 1 | tr -d '[]' | tr '[:upper:]' '[:lower:]')
+      title=$(echo "$line" | sed -E 's/^[^]]+\][[:space:]]*//')
+
+      # PID file: $SPARC_LOG_DIR/sparc-stage-<stage>-<task_id>.pid
+      pid_file="${SPARC_LOG_DIR:-/tmp}/sparc-stage-$stage-$task_id.pid"
+      pid=""
+      pid_alive="false"
+      if [[ -f "$pid_file" ]]; then
+        pid=$(cat "$pid_file" 2>/dev/null || echo "")
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+          pid_alive="true"
+        fi
+      fi
+
+      # Age in seconds (from PID file mtime)
+      age_seconds=0
+      if [[ -f "$pid_file" ]]; then
+        # macOS stat: -f %m. Linux: -c %Y.
+        mtime=$(stat -f %m "$pid_file" 2>/dev/null || stat -c %Y "$pid_file" 2>/dev/null || echo 0)
+        now=$(date +%s)
+        age_seconds=$((now - mtime))
+      fi
+
+      RUNNING_JSON+=("{\"id\":\"$task_id\",\"stage\":\"$stage\",\"title\":\"$title\",\"pid\":\"$pid\",\"pid_alive\":$pid_alive,\"age_seconds\":$age_seconds}")
+    done < <(sparc_kanban_list "$board" running 2>/dev/null \
+             | awk '/^[[:space:]]*[▶✓✗⏸⏵◀]/ && /running/')
+  fi
+
+  # Blocked tasks: get details + last comment
+  declare -a BLOCKED_JSON
+  if [[ "$n_blocked" -gt 0 ]]; then
+    while IFS= read -r line; do
+      task_id=$(echo "$line" | awk '{print $2}')
+      stage=$(echo "$line" | grep -oE '\[[A-Z]+\]' | head -n 1 | tr -d '[]' | tr '[:upper:]' '[:lower:]')
+      title=$(echo "$line" | sed -E 's/^[^]]+\][[:space:]]*//')
+
+      # Last comment: use sparc_kanban_event_log (already verified
+      # against real Hermes in v0.2.1)
+      last_comment=$(sparc_kanban_event_log "$board" "$task_id" --limit 1 2>/dev/null \
+                     | tail -n 1 | awk -F'\t' '{print $4}')
+      # Escape any quotes in the comment for JSON safety
+      last_comment_escaped=$(echo "$last_comment" | sed 's/"/\\"/g; s/\\$/\\\\/')
+
+      BLOCKED_JSON+=("{\"id\":\"$task_id\",\"stage\":\"$stage\",\"title\":\"$title\",\"last_comment\":\"$last_comment_escaped\"}")
+    done < <(sparc_kanban_list "$board" blocked 2>/dev/null \
+             | awk '/^[[:space:]]*[▶✓✗⏸⏵◀]/ && /blocked/')
+  fi
+
+  # Compose per-board JSON
+  running_joined=$(IFS=,; echo "${RUNNING_JSON[*]:-}")
+  blocked_joined=$(IFS=,; echo "${BLOCKED_JSON[*]:-}")
+  RESULTS_JSON+=("{\"slug\":\"$board\",\"counts\":{\"ready\":$n_ready,\"todo\":$n_todo,\"running\":$n_running,\"blocked\":$n_blocked,\"done\":$n_done,\"archived\":$n_archived},\"running\":[$running_joined],\"blocked\":[$blocked_joined]}")
+done
+
+# ── 3. Output ────────────────────────────────────────────────────────────
+if [[ "$JSON_OUTPUT" -eq 1 ]]; then
+  boards_joined=$(IFS=,; echo "${RESULTS_JSON[*]}")
+  cat <<EOF
+{
+  "boards": [$boards_joined],
+  "totals": {"ready":$TOTALS_READY,"todo":$TOTALS_TODO,"running":$TOTALS_RUNNING,"blocked":$TOTALS_BLOCKED,"done":$TOTALS_DONE,"archived":$TOTALS_ARCHIVED}
+}
+EOF
+  exit 0
+fi
+
+# Pretty text output
+echo ""
+echo "════════════════════════════════════════════════════════════════════"
+echo "  sparqr status"
+echo "════════════════════════════════════════════════════════════════════"
+
+for board in "${BOARDS[@]}"; do
+  if [[ -z "$board" ]]; then continue; fi
+  echo ""
+  echo "  ● $board"
+  # Re-query counts for pretty printing
+  for s in ready todo running blocked done; do
+    n=$(sparc_kanban_list "$board" "$s" 2>/dev/null | awk -v s="$s" '
+      /^Board:/ { next }
+      /no matching tasks/ { next }
+      /^[[:space:]]*[▶✓✗⏸⏵◀]/ && index($0, "  " s " ") > 0 { count++ }
+      END { print count+0 }
+    ')
+    [[ "$n" -gt 0 ]] && printf "    %-9s %d\n" "$s" "$n"
+  done
+
+  # Show running tasks with PID + age
+  if [[ "$TOTALS_RUNNING" -gt 0 ]] && sparc_kanban_list "$board" running 2>/dev/null | grep -q "running"; then
+    echo "    ── running ──"
+    sparc_kanban_list "$board" running 2>/dev/null | awk '/^[[:space:]]*[▶✓✗⏸⏵◀]/ && /running/' | while IFS= read -r line; do
+      task_id=$(echo "$line" | awk '{print $2}')
+      stage=$(echo "$line" | grep -oE '\[[A-Z]+\]' | head -n 1 | tr -d '[]' | tr '[:upper:]' '[:lower:]')
+      pid_file="${SPARC_LOG_DIR:-/tmp}/sparc-stage-$stage-$task_id.pid"
+      pid_info="no PID file"
+      if [[ -f "$pid_file" ]]; then
+        pid=$(cat "$pid_file" 2>/dev/null)
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+          mtime=$(stat -f %m "$pid_file" 2>/dev/null || stat -c %Y "$pid_file" 2>/dev/null || echo 0)
+          now=$(date +%s)
+          age=$((now - mtime))
+          pid_info="pid=$pid alive, ${age}s in stage"
+        else
+          pid_info="pid=$pid DEAD (may need reap)"
+        fi
+      fi
+      printf "      %s [%s] %s\n" "$task_id" "$stage" "$pid_info"
+    done
+  fi
+
+  # Show blocked tasks with last comment
+  if [[ "$TOTALS_BLOCKED" -gt 0 ]] && sparc_kanban_list "$board" blocked 2>/dev/null | grep -q "blocked"; then
+    echo "    ── blocked ──"
+    sparc_kanban_list "$board" blocked 2>/dev/null | awk '/^[[:space:]]*[▶✓✗⏸⏵◀]/ && /blocked/' | while IFS= read -r line; do
+      task_id=$(echo "$line" | awk '{print $2}')
+      stage=$(echo "$line" | grep -oE '\[[A-Z]+\]' | head -n 1 | tr -d '[]' | tr '[:upper:]' '[:lower:]')
+      printf "      %s [%s] (awaiting HITL review)\n" "$task_id" "$stage"
+    done
+  fi
+done
+
+echo ""
+echo "════════════════════════════════════════════════════════════════════"
+echo "  totals: ready=$TOTALS_READY  todo=$TOTALS_TODO  running=$TOTALS_RUNNING  blocked=$TOTALS_BLOCKED  done=$TOTALS_DONE"
+echo "════════════════════════════════════════════════════════════════════"
