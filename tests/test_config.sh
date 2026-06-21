@@ -257,6 +257,98 @@ val=$(sparc_config_get "$cfg" "models" "architecture")
 if [[ "$val" == "openai/gpt-5" ]]; then ok "openai model"; else fail "got '$val'"; fi
 
 # ───────────────────────────────────────────────────────────────────────
+# TEST 13: sparc_config_gates_get basic lookup (v0.3.0 story 1a)
+# ───────────────────────────────────────────────────────────────────────
+hdr "13. sparc_config_gates_get: gate type lookup"
+fresh_source
+cfg=$(write_config "gates.yaml" <<'EOF'
+gates:
+  spec:
+    type: approval
+  design:
+    type: confidence
+    threshold: 0.9
+  refinement:
+    type: sampling
+    percent: 10
+  completion:
+    type: exception
+EOF
+)
+val=$(sparc_config_gates_get "$cfg" spec type)
+if [[ "$val" == "approval" ]]; then ok "spec gate type = approval"; else fail "got '$val'"; fi
+val=$(sparc_config_gates_get "$cfg" design type)
+if [[ "$val" == "confidence" ]]; then ok "design gate type = confidence"; else fail "got '$val'"; fi
+val=$(sparc_config_gates_get "$cfg" refinement type)
+if [[ "$val" == "sampling" ]]; then ok "refinement gate type = sampling"; else fail "got '$val'"; fi
+val=$(sparc_config_gates_get "$cfg" completion type)
+if [[ "$val" == "exception" ]]; then ok "completion gate type = exception"; else fail "got '$val'"; fi
+
+# ───────────────────────────────────────────────────────────────────────
+# TEST 14: gate parameters (threshold, percent)
+# ───────────────────────────────────────────────────────────────────────
+hdr "14. sparc_config_gates_get: gate parameter lookup"
+val=$(sparc_config_gates_get "$cfg" design threshold)
+if [[ "$val" == "0.9" ]]; then ok "design threshold = 0.9"; else fail "got '$val'"; fi
+val=$(sparc_config_gates_get "$cfg" refinement percent)
+if [[ "$val" == "10" ]]; then ok "refinement percent = 10"; else fail "got '$val'"; fi
+
+# ───────────────────────────────────────────────────────────────────────
+# TEST 15: missing stage or param returns empty + non-zero
+# ───────────────────────────────────────────────────────────────────────
+hdr "15. sparc_config_gates_get: missing values return empty"
+val=$(sparc_config_gates_get "$cfg" nonexistent type)
+if [[ -z "$val" ]]; then ok "missing stage returns empty"; else fail "got '$val'"; fi
+val=$(sparc_config_gates_get "$cfg" spec nonexistent_param)
+if [[ -z "$val" ]]; then ok "missing param returns empty"; else fail "got '$val'"; fi
+
+# ───────────────────────────────────────────────────────────────────────
+# TEST 16: gate config that doesn't exist (no gates: section)
+# ───────────────────────────────────────────────────────────────────────
+hdr "16. sparc_config_gates_get: no gates section"
+fresh_source
+cfg=$(write_config "no_gates.yaml" <<'EOF'
+board: my-board
+hitl_adapter: terminal
+EOF
+)
+val=$(sparc_config_gates_get "$cfg" spec type)
+if [[ -z "$val" ]]; then ok "no gates section → empty"; else fail "got '$val'"; fi
+
+# ───────────────────────────────────────────────────────────────────────
+# TEST 17: default value when gates: present but stage: missing
+# ───────────────────────────────────────────────────────────────────────
+hdr "17. sparc_config_gates_get: stage missing from gates section"
+fresh_source
+cfg=$(write_config "partial_gates.yaml" <<'EOF'
+gates:
+  spec:
+    type: approval
+EOF
+)
+val=$(sparc_config_gates_get "$cfg" architecture type)
+if [[ -z "$val" ]]; then ok "missing stage in gates → empty (no fallback)"; else fail "got '$val'"; fi
+
+# ───────────────────────────────────────────────────────────────────────
+# TEST 18: gate type comes first (default arg)
+# ───────────────────────────────────────────────────────────────────────
+hdr "18. sparc_config_gates_get: default param is type"
+val=$(sparc_config_gates_get "$cfg" spec)
+if [[ "$val" == "approval" ]]; then ok "default param is type"; else fail "got '$val'"; fi
+
+# ───────────────────────────────────────────────────────────────────────
+# TEST 19: real sparc.config.yaml.example parses gates (when present)
+# ───────────────────────────────────────────────────────────────────────
+hdr "19. Real sparc.config.yaml.example gates (if present)"
+example="$PKG_ROOT/sparc.config.yaml.example"
+if [[ -f "$example" ]]; then
+  val=$(sparc_config_gates_get "$example" spec type)
+  if [[ -n "$val" ]]; then ok "example has gates spec type=$val"; else ok "example has no gates (expected for v0.3.0 prep)"; fi
+else
+  ok "example file not present (skipping)"
+fi
+
+# ───────────────────────────────────────────────────────────────────────
 # Summary
 # ───────────────────────────────────────────────────────────────────────
 printf "\n══════════════════════════════════════════════════════\n"

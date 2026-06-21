@@ -110,3 +110,82 @@ sparc_config_models_get() {
   local config="$1" stage="$2"
   sparc_config_get "$config" "models" "$stage"
 }
+
+# sparc_config_gates_get <config_file> <stage> [<param>]
+#
+#   Echoes the value of a gate parameter for the given stage.
+#   Default param is "type" (so `gates_get cfg spec` returns
+#   "approval" / "confidence" / "sampling" / "exception").
+#
+#   Schema (v0.3.0 story 1):
+#
+#     gates:
+#       spec:
+#         type: approval           # or confidence | sampling | exception
+#       design:
+#         type: confidence
+#         threshold: 0.9           # auto-approve if reviewer >= this
+#       refinement:
+#         type: sampling
+#         percent: 10              # review N% of the time
+#       completion:
+#         type: exception          # review only on reviewer flag
+#
+#   Returns 1 if config doesn't exist OR if the stage/param is
+#   missing. Echoes empty in those cases.
+#
+#   The parser walks 3 levels deep (gates -> stage -> param). The
+#   pure-awk parser below is intentional: no yq/python dependency,
+#   and the gates section is small enough that a recursive descent
+#   parser isn't worth the complexity.
+sparc_config_gates_get() {
+  local config="$1" stage="$2" param="${3:-type}"
+  [[ -f "$config" ]] || return 1
+
+  awk -v stage="$stage" -v param="$param" '
+    # Top-level "gates:" header
+    /^gates:[[:space:]]*$/ {
+      in_gates = 1
+      current_stage = ""
+      next
+    }
+    # Any non-blank, non-comment line at column 0 exits the section
+    in_gates && /^[^[:space:]#]/ && !/^gates:/ {
+      in_gates = 0
+      current_stage = ""
+      next
+    }
+    # Stage header line: "  spec:" (key ending with ":", no value)
+    in_gates && /^[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*:[[:space:]]*$/ {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/:.*$/, "", line)
+      current_stage = line
+      next
+    }
+    # Parameter line: "  type: approval" (key, colon, value)
+    in_gates && current_stage == stage \
+        && /^[[:space:]]+[a-zA-Z_][a-zA-Z0-9_-]*:[[:space:]]+/ {
+      this_param = $1
+      sub(/:$/, "", this_param)
+      if (this_param == param) {
+        val = $0
+        sub(/^[^:]+:[[:space:]]*/, "", val)
+        gsub(/^["\047]|["\047]$/, "", val)
+        print val
+        exit 0
+      }
+    }
+    END { exit 1 }
+  ' "$config"
+}
+
+# sparc_config_gate_default <stage>
+#
+#   Returns the default gate type for a stage if the user hasn't
+#   configured one. Approval is the safe default — explicit human
+#   review — because that matches v0.2.0 behavior and avoids
+#   silently changing gate semantics.
+sparc_config_gate_default() {
+  echo "approval"
+}
