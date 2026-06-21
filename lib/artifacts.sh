@@ -13,14 +13,14 @@
 # The two-store policy ("belt and suspenders") survives Hermes auto-compaction,
 # kanban DB corruption, and any one source of truth failing.
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_ARTIFACTS_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_ARTIFACTS_LOADED=1
+# Source dependencies. No double-source guard: see lib/kanban.sh for
+# the full reasoning. Same pattern applies here — bin/sparc `exec`s
+# subcommands, and exec doesn't carry function definitions across
+# processes. The sentinel-var pattern caused `command not found`
+# errors in the dispatched subcommands.
 
-# Source kanban.sh for sparc_kanban_comment (only if not already loaded)
-[[ -z "${SPARC_KANBAN_LOADED:-}" ]] && source "$(dirname "${BASH_SOURCE[0]}")/kanban.sh"
+# Source kanban.sh (no guard needed; re-sourcing is idempotent)
+source "$(dirname "${BASH_SOURCE[0]}")/kanban.sh"
 
 # sparc_artifact_path <board> <stage> <task_id>
 # Echoes the canonical disk path for an artifact.

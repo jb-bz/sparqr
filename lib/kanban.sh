@@ -45,11 +45,18 @@
 #                    with RECORD_REPLAY_MODE=record. Update this comment
 #                    only after the recordings succeed.
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_KANBAN_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_KANBAN_LOADED=1
+# No double-source guard: see commit history for the full reasoning.
+# Short version: bin/sparc `exec`s subcommand scripts, and `exec`
+# doesn't carry function definitions across processes — only env
+# vars. The old guard made the child script's source a no-op, so it
+# had env vars (SPARC_KANBAN_LOADED=1) but no function definitions.
+# Removing the guard fixes `sparc init` failing with
+# "sparc_kanban_board_init: command not found".
+#
+# Re-sourcing is idempotent for our lib files (they only define
+# functions and set env vars; no side effects beyond that). If we
+# ever add init code that shouldn't run twice, we'll guard that
+# specific block, not the whole file.
 
 # Path to the Hermes CLI. Override via SPARC_HERMES_BIN env var if needed.
 SPARC_HERMES_BIN="${SPARC_HERMES_BIN:-hermes}"

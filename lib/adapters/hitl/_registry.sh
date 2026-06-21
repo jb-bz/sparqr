@@ -10,11 +10,8 @@
 #   hitl_<name>_notify    — sends the review request to the human
 #   hitl_<name>_await_reply — blocks until the human replies; echoes the reply
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_HITL_REG_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_HITL_REG_LOADED=1
+# Source dependencies. No double-source guard: see lib/kanban.sh for
+# the full reasoning. Same pattern applies here.
 
 # All known adapter names. Used by `sparc adapters list` and the setup wizard.
 SPARC_HITL_ADAPTERS=(terminal tui webui workspace official-dashboard)

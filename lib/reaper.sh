@@ -25,11 +25,8 @@
 # (consistent with the v0.2.0 story 2 design principle: avoid new
 # persistent state outside the kanban when possible).
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_REAPER_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_REAPER_LOADED=1
+# Source dependencies. No double-source guard: see lib/kanban.sh for
+# the full reasoning. Same pattern applies here.
 
 # sparc_reap_check <db_path> <board> <task_id> <pid_file> <max_attempts>
 #

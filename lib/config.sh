@@ -14,11 +14,8 @@
 # is `sparc_config_models_get <stage>` for the per-stage model
 # routing added in v0.2.0 story 5.
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_CONFIG_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_CONFIG_LOADED=1
+# Source dependencies. No double-source guard: see lib/kanban.sh for
+# the full reasoning. Same pattern applies here.
 
 # sparc_config_get <config_file> <section> [<key>]
 #

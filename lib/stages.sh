@@ -17,11 +17,8 @@
 #
 # This file is sourced; no executable code. Keep it pure data.
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_STAGES_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_STAGES_LOADED=1
+# Source dependencies. No double-source guard: see lib/kanban.sh for
+# the full reasoning. Same pattern applies here.
 
 # Default stage set: SPARC's 5 phases + Design inserted between Spec and Pseudo.
 # Order matters; the orchestrator respects it.

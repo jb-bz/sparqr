@@ -9,14 +9,11 @@
 # one-line reason to stderr that the reviewer profile or the orchestrator
 # can surface to the human.
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_VALIDATORS_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_VALIDATORS_LOADED=1
+# Source dependencies. No double-source guard: see lib/kanban.sh for
+# the full reasoning. Same pattern applies here.
 
-# Source dependencies
-[[ -z "${SPARC_ARTIFACTS_LOADED:-}" ]] && source "$(dirname "${BASH_SOURCE[0]}")/artifacts.sh"
+# Source dependencies (no guards; re-sourcing is idempotent)
+source "$(dirname "${BASH_SOURCE[0]}")/artifacts.sh"
 
 # sparc_validate_specification <board> <task_id>
 # Pass conditions:
