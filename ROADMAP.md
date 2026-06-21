@@ -260,7 +260,7 @@ Each release below lists its stories as a numbered list with story points. At th
 
 ---
 
-*End of roadmap document. Last review: 2026-06-20. Next review: when v0.3.0 ships, with the v0.3.0 retrospective appended.*
+## v0.3.0 — "Make it pleasant"
 
 **Theme:** v0.2.0 works. v0.3.0 makes you want to keep using it.
 
