@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jb-bz/sparqr/config.schema.json",
+  "title": "sparqr sparc.config.yaml",
+  "description": "Schema for the per-project sparqr configuration file.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "board": {
+      "type": "string",
+      "description": "Name of the Hermes Kanban board this project uses.",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "hitl_adapter": {
+      "type": "string",
+      "enum": ["terminal", "tui", "webui", "workspace", "official-dashboard"],
+      "description": "Which HITL adapter to use for human-in-the-loop reviews."
+    },
+    "stages": {
+      "type": "array",
+      "description": "Override the default stage set. Each entry is a stage name.",
+      "items": {
+        "type": "string",
+        "enum": ["spec", "design", "pseudocode", "architecture", "refinement", "completion"]
+      },
+      "uniqueItems": true
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Override the per-stage Hermes profile. Key is the stage name. The 'reviewer' key is the reviewer profile (HITL gate, separate from the 6 stage profiles).",
+      "propertyNames": {
+        "enum": ["spec", "design", "pseudocode", "architecture", "refinement", "completion", "reviewer"]
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "models": {
+      "type": "object",
+      "description": "Per-stage model routing. Key is the stage name; value is the model ID (e.g. 'anthropic/claude-haiku-4').",
+      "propertyNames": {
+        "enum": ["spec", "design", "pseudocode", "architecture", "refinement", "completion"]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "gates": {
+      "type": "object",
+      "description": "Per-stage gate configuration. Each gate decides whether a stage's output needs human review.",
+      "propertyNames": {
+        "enum": ["spec", "design", "pseudocode", "architecture", "refinement", "completion"]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["type"],
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["approval", "confidence", "sampling", "exception"],
+            "description": "Gate type. 'approval' (default) always requires human review. 'confidence' auto-approves if reviewer confidence >= threshold. 'sampling' reviews N% of outputs. 'exception' auto-approves unless reviewer flags a problem."
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "For confidence gates: auto-approve if reviewer confidence >= this value (0-1). Default 0.9."
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "For sampling gates: review this percentage of outputs (0-100). Default 10."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "type": { "const": "confidence" } },
+              "required": ["type"]
+            },
+            "then": {
+              "required": ["threshold"],
+              "properties": {
+                "threshold": { "minimum": 0, "maximum": 1 }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "const": "sampling" } },
+              "required": ["type"]
+            },
+            "then": {
+              "required": ["percent"],
+              "properties": {
+                "percent": { "minimum": 0, "maximum": 100 }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

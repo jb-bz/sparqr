@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# bin/sparc-config — Config file inspection and validation (v0.3.0 story 8).
+#
+# Usage:
+#   sparc config validate [path/to/sparc.config.yaml]
+#   sparc config show     [path/to/sparc.config.yaml]
+#   sparc config schema   (prints the JSON schema path)
+#
+# Default config path: ./sparc.config.yaml
+#
+# `validate` parses the YAML against the JSON schema in
+# docs/config-schema.json and reports any errors. Falls back to
+# "schema unavailable" if jsonschema isn't installed (instead of
+# failing). The user gets value either way: missing schema = no
+# validation, but the config still loads.
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+# shellcheck source=../lib/config.sh
+source "$SPARC_PKG_ROOT/lib/config.sh"
+
+DEFAULT_CONFIG="./sparc.config.yaml"
+SCHEMA_PATH="$SPARC_PKG_ROOT/docs/config-schema.json"
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  validate)
+    config="${1:-$DEFAULT_CONFIG}"
+    if [[ ! -f "$config" ]]; then
+      echo "sparc config validate: file not found: $config" >&2
+      exit 1
+    fi
+
+    if ! python3 -c "import jsonschema" 2>/dev/null; then
+      echo "sparc config validate: python3 jsonschema not available; skipping schema validation"
+      echo "  install with: pip3 install jsonschema"
+      exit 0
+    fi
+
+    python3 - "$config" "$SCHEMA_PATH" <<'PYEOF'
+import json, sys, yaml
+
+try:
+    import jsonschema
+except ImportError:
+    sys.exit(0)  # already checked before invoking python
+
+config_path = sys.argv[1]
+schema_path = sys.argv[2]
+
+with open(config_path) as f:
+    config = yaml.safe_load(f) or {}
+with open(schema_path) as f:
+    schema = json.load(f)
+
+try:
+    jsonschema.validate(instance=config, schema=schema)
+    print(f"  ✓ {config_path}: valid")
+    sys.exit(0)
+except jsonschema.ValidationError as e:
+    print(f"  ✗ {config_path}: INVALID")
+    # Show a friendly error path. jsonschema uses JSON pointers.
+    path = "/".join(str(p) for p in e.absolute_path) or "(root)"
+    print(f"    at {path}: {e.message}")
+    # If there are sub-errors, list them too
+    if e.context:
+        for sub in e.context:
+            sub_path = "/".join(str(p) for p in sub.absolute_path) or "(root)"
+            print(f"      - at {sub_path}: {sub.message}")
+    sys.exit(1)
+PYEOF
+    rc=$?
+    exit $rc
+    ;;
+
+  show)
+    config="${1:-$DEFAULT_CONFIG}"
+    if [[ ! -f "$config" ]]; then
+      echo "sparc config show: file not found: $config" >&2
+      exit 1
+    fi
+    echo "  → board:        $(sparc_config_get "$config" board 2>/dev/null || echo '(unset)')"
+    echo "  → hitl_adapter: $(sparc_config_get "$config" hitl_adapter 2>/dev/null || echo '(unset)')"
+    echo "  → stages:       $(sparc_config_get "$config" stages 2>/dev/null || echo '(default)')"
+    echo ""
+    echo "  → profiles (per stage):"
+    for stage in $(sparc_stage_all_keys); do
+      p=$(sparc_config_get "$config" profiles "$stage" 2>/dev/null || true)
+      [[ -n "$p" ]] && echo "      $stage = $p"
+    done
+    echo ""
+    echo "  → models (per stage):"
+    for stage in $(sparc_stage_all_keys); do
+      m=$(sparc_config_get "$config" models "$stage" 2>/dev/null || true)
+      [[ -n "$m" ]] && echo "      $stage = $m"
+    done
+    echo ""
+    echo "  → gates (per stage):"
+    for stage in $(sparc_stage_all_keys); do
+      t=$(sparc_config_get "$config" gates "$stage" type 2>/dev/null || true)
+      if [[ -n "$t" ]]; then
+        echo "      $stage = $t"
+        # Show params
+        if [[ "$t" == "confidence" ]]; then
+          thresh=$(sparc_config_get "$config" gates "$stage" threshold 2>/dev/null || true)
+          [[ -n "$thresh" ]] && echo "        threshold = $thresh"
+        elif [[ "$t" == "sampling" ]]; then
+          pct=$(sparc_config_get "$config" gates "$stage" percent 2>/dev/null || true)
+          [[ -n "$pct" ]] && echo "        percent = $pct"
+        fi
+      fi
+    done
+    ;;
+
+  schema)
+    echo "$SCHEMA_PATH"
+    ;;
+
+  help|-h|--help)
+    cat <<'EOF'
+sparc config — Inspect and validate the sparc config file.
+
+Usage:
+  sparc config validate [path]    Validate against JSON schema
+  sparc config show     [path]    Print parsed config in human form
+  sparc config schema             Print path to the JSON schema
+
+Default config path: ./sparc.config.yaml
+
+Validation requires Python's jsonschema module. If it's not installed,
+validation is skipped (config still loads; no error). Install with:
+  pip3 install jsonschema
+EOF
+    ;;
+
+  *)
+    echo "sparc config: unknown command: $cmd" >&2
+    echo "Try 'sparc config help'" >&2
+    exit 2
+    ;;
+esac
