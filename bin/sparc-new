@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# bin/sparc-new — Interactive project template scaffolder (v0.4.0 story 1b).
+#
+# Usage:
+#   sparc new [name] [--type web-app|cli|library|internal-tool]
+#
+# Asks for project name and type, copies the matching template from
+# templates/projects/<type>/ to the current directory, substitutes
+# the project name placeholder, then runs `sparc init` with the
+# prefilled config.
+#
+# Why a separate binary: this is interactive setup. bin/sparc-init
+# is non-interactive (it just initializes from an existing config).
+# Separating concerns keeps both scripts simple.
+#
+# End-to-end verified against real Hermes v0.17.0.
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+
+# Available project types. Each maps to templates/projects/<type>/.
+PROJECT_TYPES=("web-app" "cli" "library" "internal-tool")
+DEFAULT_TYPE="web-app"
+
+# ── Helpers ────────────────────────────────────────────────────────────
+# ask "question" "default" — echoes the user's answer (or default on empty)
+ask() {
+  local q="$1" def="$2"
+  local ans
+  read -r -p "  $q [$def]: " ans || true
+  echo "${ans:-$def}"
+}
+
+# ask_required "question" — keeps asking until user provides input
+ask_required() {
+  local q="$1"
+  local ans
+  while [[ -z "$ans" ]]; do
+    read -r -p "  $q: " ans || true
+    [[ -z "$ans" ]] && echo "  (required)"
+  done
+  echo "$ans"
+}
+
+# ── Argument parsing ──────────────────────────────────────────────────
+PROJECT_NAME=""
+PROJECT_TYPE=""
+# Manual arg parsing instead of `for arg in "$@"` + `shift` because
+# bash's `shift` inside a `for` loop interacts badly with the loop's
+# own iteration over "$@" (same bug we hit in bin/sparc-status).
+i=1
+while [[ $i -le $# ]]; do
+  arg="${!i}"
+  case "$arg" in
+    --type)        i=$((i + 1)); PROJECT_TYPE="${!i:-}" ;;
+    --type=*)      PROJECT_TYPE="${arg#--type=}" ;;
+    --help|-h)
+      cat <<'EOF'
+sparc new — Interactive project template scaffolder.
+
+Usage:
+  sparc new [name] [--type web-app|cli|library|internal-tool]
+
+If name is not provided, prompts for it.
+If --type is not provided, prompts for it (default: web-app).
+
+Available types:
+  web-app       Web application (approval gates for early stages)
+  cli           Command-line tool (sampling for design)
+  library       Library with public API (confidence throughout)
+  internal-tool Internal team tool (sampling throughout)
+
+The chosen type determines templates/projects/<type>/, which
+gets copied to the current directory. Then `sparc init` runs
+with the new sparc.config.yaml.
+
+Examples:
+  sparc new my-web-app
+  sparc new --type cli
+  sparc new my-lib --type library
+EOF
+      exit 0
+      ;;
+    *)
+    # Positional: project name (first one wins)
+    if [[ -z "$PROJECT_NAME" ]]; then
+      PROJECT_NAME="$arg"
+    else
+      echo "sparc new: unexpected arg: $arg" >&2
+      exit 2
+    fi
+    ;;
+    esac
+    i=$((i + 1))
+    done
+
+# ── Validate or prompt ────────────────────────────────────────────────
+if [[ -z "$PROJECT_NAME" ]]; then
+  PROJECT_NAME=$(ask_required "Project name (used as board name and dir name)")
+fi
+
+# Sanitize project name for board slug and directory.
+# Boards must match ^[a-z0-9][a-z0-9-]*$ (per config schema).
+SLUG=$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//; s/-+/-/g')
+if [[ ! "$SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "sparc new: '$PROJECT_NAME' doesn't make a valid board slug." >&2
+  echo "  (must start with a-z/0-9 and contain only a-z, 0-9, hyphens)" >&2
+  exit 1
+fi
+
+# Project type
+if [[ -z "$PROJECT_TYPE" ]]; then
+  echo ""
+  echo "  Project type:"
+  echo "    1. web-app       — Web application (approval for early stages)"
+  echo "    2. cli           — Command-line tool (sampling for design)"
+  echo "    3. library       — Library with public API (confidence throughout)"
+  echo "    4. internal-tool — Internal team tool (sampling throughout)"
+  echo ""
+  PROJECT_TYPE=$(ask "Choose [1-4] or type the name (default: $DEFAULT_TYPE)" "$DEFAULT_TYPE")
+fi
+
+# Validate type
+case "$PROJECT_TYPE" in
+  1) PROJECT_TYPE="web-app" ;;
+  2) PROJECT_TYPE="cli" ;;
+  3) PROJECT_TYPE="library" ;;
+  4) PROJECT_TYPE="internal-tool" ;;
+  web-app|cli|library|internal-tool) ;;
+  *)
+    echo "sparc new: unknown project type: $PROJECT_TYPE" >&2
+    echo "  (expected: web-app, cli, library, internal-tool)" >&2
+    exit 1
+    ;;
+esac
+
+# ── Preview ────────────────────────────────────────────────────────────
+TEMPLATE_DIR="$SPARC_PKG_ROOT/templates/projects/$PROJECT_TYPE"
+
+echo ""
+echo "  → sparc new preview:"
+echo "    name:  $PROJECT_NAME  (board slug: $SLUG)"
+echo "    type:  $PROJECT_TYPE"
+echo "    from:  $TEMPLATE_DIR"
+echo "    to:    $(pwd)/"
+echo "    files:"
+for f in "$TEMPLATE_DIR"/*; do
+  [[ -f "$f" ]] && echo "      $(basename "$f")"
+done
+
+echo ""
+CONFIRM=$(ask "Proceed? [y/N]" "N")
+[[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" || "$CONFIRM" == "yes" ]] || {
+  echo "  cancelled"
+  exit 0
+}
+
+# ── Copy + substitute ─────────────────────────────────────────────────
+echo ""
+echo "  → copying template to $(pwd)/"
+for f in "$TEMPLATE_DIR"/*; do
+  [[ -f "$f" ]] || continue
+  fname=$(basename "$f")
+  sed -e "s/\$(PROJECT_NAME)/$SLUG/g" \
+      -e "s/\$(date)/$(date -u +%Y-%m-%d)/g" \
+      "$f" > "./$fname"
+  echo "    ✓ $fname"
+done
+
+# ── Run sparc init ─────────────────────────────────────────────────────
+echo ""
+echo "  → running sparc init..."
+# We exec sparc init so it can use bin/sparc's full dispatch + lib sourcing.
+exec "$SPARC_PKG_ROOT/bin/sparc" init "$PROJECT_NAME"

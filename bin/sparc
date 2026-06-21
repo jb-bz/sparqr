@@ -150,6 +150,8 @@ Usage: sparc <command> [args]
 Commands:
   init        Initialize a new SPARC pipeline in the current directory
               (creates sparc.config.yaml and the kanban board)
+  new         Scaffold a new project from a template (web-app / cli / library / internal-tool)
+              Usage: sparc new [name] [--type TYPE]  (v0.4.0)
   pipeline    Start, stop, or check status of the orchestrator daemon
               Usage: sparc pipeline {start|stop|status|restart|run-once}
   stage       Run a single stage agent manually (debug aid)
@@ -186,6 +188,7 @@ shift || true
 
 case "$cmd" in
   init)        exec "$SPARC_PKG_ROOT/bin/sparc-init" "$@" ;;
+  new)         exec "$SPARC_PKG_ROOT/bin/sparc-new" "$@" ;;
   pipeline)    exec "$SPARC_PKG_ROOT/bin/sparc-pipeline" "$@" ;;
   stage)       exec "$SPARC_PKG_ROOT/bin/sparc-stage" "$@" ;;
   hitl)        exec "$SPARC_PKG_ROOT/bin/sparc-hitl-watcher" "$@" ;;
