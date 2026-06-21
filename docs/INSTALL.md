@@ -24,6 +24,8 @@ This guide walks through importing the package into a running Hermes install. If
 - **curl** (preinstalled everywhere)
 - **jq** — `brew install jq` (macOS) or `apt install jq` (Linux). Required for HITL adapter JSON.
 - Optional: **yq** — `brew install yq` / `apt install yq` — used to parse `sparc.config.yaml` natively. Without it, setup.sh falls back to a python3 parser.
+- Optional: **GitHub PAT** (`GITHUB_SPARQ` env var) — only needed if you want `sparc` to push kanban state to GitHub Issues. Most users don't.
+- Optional: **Bitwarden Secrets Manager** (`hermes secrets bitwarden setup`) — a convenient way to manage your GitHub PAT and other secrets. Skip entirely if you'd rather use shell env vars.
 
 ---
 
@@ -34,9 +36,12 @@ This guide walks through importing the package into a running Hermes install. If
 git clone https://github.com/jb-bz/sparqr.git
 cd sparqr
 
-# 2. Run the importer (asks 1 question; the package-side install is fast, but
-#    the prerequisites — Hermes + Bitwarden Secrets Manager + a GitHub PAT —
-#    are the slow part. See [Quick links](#quick-links) for the full picture.)
+# 2. Run the importer (asks 1 question; the package-side install is fast).
+#    Hermes is required. A GitHub PAT is required only if you want
+#    `sparc` to push kanban state to GitHub Issues (most users don't).
+#    Bitwarden Secrets Manager (BSM) is **optional** — it's a convenient
+#    way to manage your GitHub PAT, but you can also set the env var
+#    directly (`export GITHUB_SPARQ=...`) and skip BSM entirely.
 ./setup.sh
 
 # 3. Verify
