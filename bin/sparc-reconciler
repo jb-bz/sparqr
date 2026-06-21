@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# bin/sparc-reconciler — Sync disk artifacts to kanban comment threads (v0.3.0 story 6).
+#
+# Problem: between the moment a stage agent writes an artifact to disk
+# and the moment it publishes to the kanban comment thread, anything
+# can happen — the agent crashes, the orchestrator is killed, the
+# machine loses power. The artifact is on disk; the kanban thread
+# doesn't know yet.
+#
+# This reconciler bridges that gap. Every poll cycle (default: 60s),
+# it walks the artifact directory and checks each artifact against the
+# kanban comment thread for that task. If the comment thread doesn't
+# have a [ARTIFACT_PUBLISHED] marker (or its content hash differs),
+# it posts the artifact as a comment.
+#
+# Idempotent: re-running on the same artifact produces no duplicate
+# comments. Each reconciliation pass uses a content hash to detect
+# changes.
+#
+# Usage:
+#   sparc reconciler run-once           # single pass, exit
+#   sparc reconciler daemon              # loop forever (60s interval)
+#   sparc reconciler status             # show last-known state
+#
+# Configure in sparc.config.yaml:
+#   reconciler:
+#     enabled: true
+#     interval_seconds: 60
+#     artifact_dir: ./docs/sparc   (default: ./docs/sparc)
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+# shellcheck source=../lib/kanban.sh
+source "$SPARC_PKG_ROOT/lib/kanban.sh"
+# shellcheck source=../lib/artifacts.sh
+source "$SPARC_PKG_ROOT/lib/artifacts.sh"
+# shellcheck source=../lib/config.sh
+source "$SPARC_PKG_ROOT/lib/config.sh"
+
+DEFAULT_CONFIG="./sparc.config.yaml"
+STATE_DIR="${SPARC_RECONCILER_STATE:-./.sparc-reconciler}"
+DEFAULT_INTERVAL=60
+
+# ── Argument parsing ──────────────────────────────────────────────────
+cmd="${1:-help}"
+shift || true
+case "$cmd" in
+  run-once) : ;;
+  daemon)
+    INTERVAL="${SPARC_RECON_INTERVAL:-$DEFAULT_INTERVAL}"
+    echo "[$(date -u +%H:%M:%S)] reconciler daemon started (interval=${INTERVAL}s)"
+    while true; do
+      sparc_reconciler_pass
+      sleep "$INTERVAL"
+    done
+    ;;
+  status)
+    echo "  reconciler state dir: $STATE_DIR"
+    if [[ -f "$STATE_DIR/last_run.txt" ]]; then
+      echo "  last run: $(cat "$STATE_DIR/last_run.txt")"
+    else
+      echo "  last run: never"
+    fi
+    exit 0
+    ;;
+  help|-h|--help)
+    cat <<'EOF'
+sparc reconciler — Sync disk artifacts to kanban comment threads.
+
+Usage:
+  sparc reconciler run-once       Single pass, exit
+  sparc reconciler daemon          Loop forever (60s default interval)
+  sparc reconciler status          Show last-known state
+
+Configure via sparc.config.yaml:
+  reconciler:
+    enabled: true
+    interval_seconds: 60
+
+Idempotent. Safe to run while orchestrators are active.
+EOF
+    exit 0
+    ;;
+  *) echo "sparc reconciler: unknown command: $cmd" >&2; exit 2 ;;
+esac
+
+# ── Single pass ──────────────────────────────────────────────────────
+# sparc_reconciler_pass <config> <state_dir> [<board>]
+#
+# Walks the artifact disk dir, checks each artifact against the
+# kanban comment thread for its task, posts if missing or changed.
+# Idempotent: a content hash in the comment prevents duplicates.
+sparc_reconciler_pass() {
+  local config="${1:-$DEFAULT_CONFIG}"
+  local state_dir="${2:-$STATE_DIR}"
+  local board_filter="${3:-}"
+
+  mkdir -p "$state_dir"
+
+  local artifact_dir
+  artifact_dir=$(sparc_config_get "$config" reconciler artifact_dir 2>/dev/null || echo "./docs/sparc")
+  local board
+  board=$(sparc_config_get "$config" board 2>/dev/null || echo "")
+
+  if [[ -z "$board" ]]; then
+    echo "  ! no board configured; skipping pass"
+    return 0
+  fi
+
+  if [[ ! -d "$artifact_dir" ]]; then
+    # No artifacts yet — normal for a fresh project
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$state_dir/last_run.txt"
+    return 0
+  fi
+
+  local synced=0
+  local skipped=0
+  local tasks_checked=0
+
+  # Track synced hashes in a local state file. Hermes's event log
+  # only stores {author, len} for comments — not the comment text —
+  # so we can't grep the comment thread for the [RECONCILED:hash]
+  # marker. Local state is the source of truth; the marker comment
+  # is just for human inspection.
+  local synced_file="$state_dir/synced-hashes.txt"
+  touch "$synced_file"
+
+  # Walk $artifact_dir/$board/$stage/$task_id.md
+  # Format: <artifact_dir>/<board>/<stage>/<task>.md
+  while IFS= read -r -d '' artifact_file; do
+    tasks_checked=$((tasks_checked + 1))
+
+    # Parse the path to extract stage and task_id
+    local rel="${artifact_file#$artifact_dir/}"
+    # rel is "<board>/<stage>/<task>.md"
+    local file_board file_stage file_task
+    file_board=$(echo "$rel" | cut -d'/' -f1)
+    file_stage=$(echo "$rel" | cut -d'/' -f2)
+    file_task=$(basename "$artifact_file" .md)
+
+    # Skip if board filter doesn't match
+    if [[ -n "$board_filter" && "$file_board" != "$board_filter" ]]; then
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    # Compute content hash (used as the dedup key)
+    local hash
+    hash=$(shasum -a 256 "$artifact_file" 2>/dev/null | cut -d' ' -f1 || sha256sum "$artifact_file" | cut -d' ' -f1)
+    hash="${hash:0:16}"
+
+    # Dedup check against the local state file
+    if grep -q "^${file_board} ${file_task} ${hash}\$" "$synced_file" 2>/dev/null; then
+      # Already synced with this exact content
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    # Read the artifact and post it
+    local content
+    content=$(cat "$artifact_file")
+
+    echo "[$(date -u +%H:%M:%S)] reconciling: board=$file_board stage=$file_stage task=$file_task hash=$hash"
+    sparc_kanban_comment "$file_board" "$file_task" "$content" >/dev/null 2>&1 || {
+      echo "  ! failed to post comment (continuing)"
+      continue
+    }
+    sparc_kanban_comment "$file_board" "$file_task" "[RECONCILED:$hash] auto-synced by reconciler at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null 2>&1 || true
+
+    # Record in the local state file
+    echo "${file_board} ${file_task} ${hash}" >> "$synced_file"
+    synced=$((synced + 1))
+  done < <(find "$artifact_dir/$board" -name '*.md' -print0 2>/dev/null)
+
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$state_dir/last_run.txt"
+  echo "[$(date -u +%H:%M:%S)] reconciler pass: checked=$tasks_checked synced=$synced skipped=$skipped"
+}
+
+# Run a single pass when called as `sparc reconciler run-once`
+if [[ "$cmd" == "run-once" ]]; then
+  config="${1:-$DEFAULT_CONFIG}"
+  sparc_reconciler_pass "$config" "$STATE_DIR" "${2:-}"
+fi

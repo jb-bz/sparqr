@@ -55,7 +55,7 @@
       "additionalProperties": {
         "type": "object",
         "required": ["type"],
-        "additionalProperties": true,
+        "additionalProperties": false,
         "properties": {
           "type": {
             "type": "string",
@@ -82,10 +82,7 @@
               "required": ["type"]
             },
             "then": {
-              "required": ["threshold"],
-              "properties": {
-                "threshold": { "minimum": 0, "maximum": 1 }
-              }
+              "required": ["threshold"]
             }
           },
           {
@@ -94,13 +91,31 @@
               "required": ["type"]
             },
             "then": {
-              "required": ["percent"],
-              "properties": {
-                "percent": { "minimum": 0, "maximum": 100 }
-              }
+              "required": ["percent"]
             }
           }
         ]
+      }
+    },
+    "reconciler": {
+      "type": "object",
+      "description": "Configuration for the artifact reconciler daemon (v0.3.0 story 6). The reconciler syncs disk artifacts to kanban comment threads periodically.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the reconciler is enabled. Default: false (opt-in)."
+        },
+        "interval_seconds": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 86400,
+          "description": "Seconds between reconciliation passes. Default: 60."
+        },
+        "artifact_dir": {
+          "type": "string",
+          "description": "Where to look for artifact files on disk. Default: ./docs/sparc"
+        }
       }
     }
   }

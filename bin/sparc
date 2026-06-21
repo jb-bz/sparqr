@@ -163,6 +163,8 @@ Commands:
               Usage: sparc status [--board <slug>] [--json]
   config      Inspect and validate the sparc config file
               Usage: sparc config {validate|show|schema} [path]
+  reconciler  Sync disk artifacts to kanban comment threads
+              Usage: sparc reconciler {run-once|daemon|status}
   version     Print the package version
   help        Print this help
 
@@ -188,6 +190,7 @@ case "$cmd" in
   doctor)      exec "$SPARC_PKG_ROOT/bin/sparc-doctor" "$@" ;;
   status)      exec "$SPARC_PKG_ROOT/bin/sparc-status" "$@" ;;
   config)      exec "$SPARC_PKG_ROOT/bin/sparc-config" "$@" ;;
+  reconciler)  exec "$SPARC_PKG_ROOT/bin/sparc-reconciler" "$@" ;;
   events)      sparc_cmd_events "$@" ;;
   adapters)    sparc_cmd_adapters "$@" ;;
   stages)      sparc_cmd_stages "$@" ;;
