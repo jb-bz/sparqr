@@ -1,0 +1,104 @@
+[
+  {
+    "args": [
+      "kanban",
+      "boards",
+      "list"
+    ],
+    "stdout": "    SLUG                      NAME                          COUNTS\n\u25cf   default                   Default                       ready=1\n    sparc-sparqr-smoke-1782003742  SPARC: sparqr-smoke-1782003742  (empty)\n    sparc-sparqr-smoke-1782003837  SPARC: sparqr-smoke-1782003837  ready=1, todo=5\n    spike-test                Spike test                    archived=3\n\nCurrent board: default\nSwitch boards with `hermes kanban boards switch <slug>`.",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "boards",
+      "create",
+      "sparqr-itest-pipeline",
+      "--name",
+      "Two-Stage Pipeline Test",
+      "--icon",
+      "\ud83c\udfaf",
+      "--switch"
+    ],
+    "stdout": "Board 'sparqr-itest-pipeline' created.\n  Display name: Two-Stage Pipeline Test\n  DB path:      /Users/jolonbankey/.hermes/kanban/boards/sparqr-itest-pipeline/kanban.db\n  Switched to 'sparqr-itest-pipeline'.",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-pipeline",
+      "create",
+      "[SPEC] implement feature X"
+    ],
+    "stdout": "Created t_f70e86dc  (ready, assignee=-)",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-pipeline",
+      "create",
+      "[REFINEMENT] implement feature X",
+      "--parent",
+      "t_f70e86dc"
+    ],
+    "stdout": "Created t_b35f60a0  (todo, assignee=-)",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-pipeline",
+      "link",
+      "t_f70e86dc",
+      "t_b35f60a0"
+    ],
+    "stdout": "Linked t_f70e86dc -> t_b35f60a0",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-pipeline",
+      "comment",
+      "t_b35f60a0",
+      "[REFINEMENT] feature X implemented in src/foo.py"
+    ],
+    "stdout": "Comment added to t_b35f60a0",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-pipeline",
+      "complete",
+      "t_b35f60a0"
+    ],
+    "stdout": "",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)\ncannot complete t_b35f60a0 (unknown id or terminal state)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-pipeline",
+      "complete",
+      "t_f70e86dc"
+    ],
+    "stdout": "Completed t_f70e86dc",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  }
+]

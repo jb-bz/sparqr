@@ -1,0 +1,77 @@
+[
+  {
+    "args": [
+      "kanban",
+      "boards",
+      "list"
+    ],
+    "stdout": "    SLUG                      NAME                          COUNTS\n\u25cf   default                   Default                       ready=1\n    sparc-sparqr-smoke-1782003742  SPARC: sparqr-smoke-1782003742  (empty)\n    sparc-sparqr-smoke-1782003837  SPARC: sparqr-smoke-1782003837  ready=1, todo=5\n    spike-test                Spike test                    archived=3\n\nCurrent board: default\nSwitch boards with `hermes kanban boards switch <slug>`.",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "boards",
+      "create",
+      "sparqr-itest-single",
+      "--name",
+      "Single Stage Test",
+      "--icon",
+      "\ud83c\udfaf",
+      "--switch"
+    ],
+    "stdout": "Board 'sparqr-itest-single' created.\n  Display name: Single Stage Test\n  DB path:      /Users/jolonbankey/.hermes/kanban/boards/sparqr-itest-single/kanban.db\n  Switched to 'sparqr-itest-single'.",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-single",
+      "create",
+      "[SPEC] test feature"
+    ],
+    "stdout": "Created t_0a42bb78  (ready, assignee=-)",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-single",
+      "claim",
+      "t_0a42bb78"
+    ],
+    "stdout": "Claimed t_0a42bb78\nWorkspace: /Users/jolonbankey/.hermes/kanban/boards/sparqr-itest-single/workspaces/t_0a42bb78",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-single",
+      "comment",
+      "t_0a42bb78",
+      "[AGENT] starting work"
+    ],
+    "stdout": "Comment added to t_0a42bb78",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  },
+  {
+    "args": [
+      "kanban",
+      "--board",
+      "sparqr-itest-single",
+      "complete",
+      "t_0a42bb78"
+    ],
+    "stdout": "Completed t_0a42bb78",
+    "stderr": "  Bitwarden Secrets Manager: applied 2 secrets (GITHUB_SPARQ, GITHUB_SPARQR_RELEASES)",
+    "exit_code": 0
+  }
+]
