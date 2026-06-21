@@ -447,3 +447,17 @@ Things I'd want your input on before finalizing:
 ---
 
 *End of roadmap document. Last review: 2026-06-21. Next review: when v0.4.0 ships, with the v0.4.0 retrospective appended.*
+
+**v0.3.0 — shipped 2026-06-21**
+
+- **Estimated pts:** 28
+- **Actual pts:** 28
+- **Velocity ratio:** 1.00
+- **Stories planned:** 8
+- **Stories shipped:** 8
+- **Stories deferred:** 0
+- **What surprised us:** tests-first approach caught bugs in 4 of 8 stories (gate parser, gate logic, JSON schema example file, logrotate algorithm); bash 3.2 / macOS awk quirks hit us 4+ more times (mapfile, gawk match(), source-order trap, for-shift); Hermes events store `{author, len}` not comment text (forced local state file for reconciler); the "deprecate requires_review" story was anticlimactic — keep the boolean as default, gates config overrides
+- **What we'd do differently:** add integration tests for new commands (status, config, reconciler, logrotate); build a `lib/bash3-compat.sh` shim consolidating all bash 3.2 workarounds; run `sparc config validate` as part of CI/pre-commit
+- **Full retrospective:** [docs/retrospectives/v0.3.0.md](docs/retrospectives/v0.3.0.md)
+
+**Implication for v0.4.0:** Velocity of exactly 1.00 (28/28) suggests our point scale is well-calibrated. v0.4.0 is planned at 36 pts. If v0.4.0 ships at 36+, our scale is accurate; if it ships at 50+, we're under-estimating. The recurring bash 3.2 bugs are a v0.4.0 candidate for consolidation. The new commands (status, config, reconciler, logrotate) all need integration tests against real Hermes — first story of v0.4.0. The gates + reconciler + status combination creates a workflow that's actually pleasant to use; v0.4.0 should focus on adoption (new-project template, hosted demo, video walkthrough).
