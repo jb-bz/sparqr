@@ -11,14 +11,9 @@
 #   3. Assert outcomes        (using helpers below)
 #   4. teardown_test_env      (cleanup)
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_TEST_HELPERS_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_TEST_HELPERS_LOADED=1
+# No double-source guard: see lib/kanban.sh for the full reasoning.
 
-# Locate the package root (three levels up from this file:
-# lib/test-helpers.sh -> lib/ -> integration/ -> tests/ -> <pkg_root>)
+# Locate the package root (three levels up from this file)
 TEST_HELPERS_PKG_ROOT="${TEST_HELPERS_PKG_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 
 # Source record-replay if not already loaded
@@ -29,52 +24,32 @@ fi
 
 # setup_test_env <test_name>
 #
-#   Creates a tempdir, sets SPARC_HERMES_BIN to a mock hermes that
-#   uses record-replay, and configures the test environment.
+# Creates a tempdir, installs the mock hermes (record-replay-aware),
+# and configures the test environment.
 #
-#   The mock hermes is a small bash script that:
-#     - On RECORD=1: exec the real hermes, capturing output
-#     - On REPLAY=1: read from fixture, echo recorded output
-#
-#   Call from a test:
-#     setup_test_env "my_test_name"
-#     # ... do test things ...
-#     teardown_test_env
+# The mock hermes delegates to lib/record-replay-runner.sh which
+# handles both modes: in RECORD mode it runs the real hermes and
+# captures the interaction; in REPLAY mode it returns the recorded
+# response. The real hermes is found on PATH (skipping the mock dir).
 setup_test_env() {
   local test_name="$1"
   TEST_HELPERS_TMPDIR=$(mktemp -d)
   export TEST_HELPERS_TMPDIR
 
-  # Create a mock hermes binary on PATH that records or replays
+  # Install the mock hermes (separate file, easier than heredoc quoting).
+  # We bake the runner and real-hermes-search paths into the mock at
+  # install time, since BASH_SOURCE inside the copied mock would point
+  # to the tempdir (and the runner lives in the package, not the tempdir).
   mkdir -p "$TEST_HELPERS_TMPDIR/bin"
-  cat > "$TEST_HELPERS_TMPDIR/bin/hermes" <<MOCK_EOF
-#!/usr/bin/env bash
-# Mock hermes for integration tests. Delegates to record-replay.
-# RECORD=1 runs the real hermes (which must be on PATH ahead of this
-# mock) and captures output. Default mode replays from fixture.
-if [[ "\${RECORD_REPLAY_MODE:-replay}" == "record" ]]; then
-  # Find the real hermes (skip the mock dir)
-  local real_hermes=""
-  local p
-  IFS=: read -ra p <<< "\$PATH"
-  for d in "\${p[@]}"; do
-    [[ "\$d" == "$TEST_HELPERS_TMPDIR/bin" ]] && continue
-    [[ -x "\$d/hermes" ]] && { real_hermes="\$d/hermes"; break; }
-  done
-  if [[ -z "\$real_hermes" ]]; then
-    # Fall back to PATH (PATH may have it via SPARC_HERMES_BIN env var)
-    real_hermes="\${REAL_HERMES:-hermes}"
-  fi
-  exec "\$real_hermes" "\$@"
-fi
-# Replay mode: delegate to sparc_rr_record_one
-exec "$TEST_HELPERS_PKG_ROOT/tests/integration/lib/record-replay-runner.sh" "\$@"
-MOCK_EOF
+  sed -e "s|@RUNNER_PATH@|$TEST_HELPERS_PKG_ROOT/tests/integration/lib/record-replay-runner.sh|g" \
+      "$TEST_HELPERS_PKG_ROOT/tests/integration/lib/mock-hermes.sh" \
+    > "$TEST_HELPERS_TMPDIR/bin/hermes"
   chmod +x "$TEST_HELPERS_TMPDIR/bin/hermes"
+
   export PATH="$TEST_HELPERS_TMPDIR/bin:$PATH"
   export SPARC_HERMES_BIN="$TEST_HELPERS_TMPDIR/bin/hermes"
 
-  # Initialize record-replay
+  # Initialize record-replay (sets fixture path, resets index)
   sparc_rr_init "$test_name"
 
   # Common test environment
@@ -85,8 +60,8 @@ MOCK_EOF
 
 # teardown_test_env
 #
-#   Removes the tempdir. Tests should call this in a `trap` so it
-#   runs even on test failure.
+# Removes the tempdir. Tests should call this in a `trap` so it
+# runs even on test failure.
 teardown_test_env() {
   if [[ -n "${TEST_HELPERS_TMPDIR:-}" && -d "$TEST_HELPERS_TMPDIR" ]]; then
     rm -rf "$TEST_HELPERS_TMPDIR"

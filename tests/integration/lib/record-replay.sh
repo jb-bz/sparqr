@@ -22,17 +22,25 @@
 
 # This file is sourced by integration tests; it doesn't run on its own.
 
-# Guard against double-sourcing
-if [[ -n "${SPARC_RECORD_REPLAY_LOADED:-}" ]]; then
-  return 0
-fi
-export SPARC_RECORD_REPLAY_LOADED=1
+# No double-source guard: see lib/kanban.sh for the full reasoning.
+# Same pattern applies here — the runner is `exec`'d by the mock
+# hermes, and exec doesn't carry function definitions across
+# processes. The sentinel-var pattern caused `sparc_rr_record_one:
+# command not found` in the replayed runs.
 
-# Paths
-RECORD_REPLAY_FIXTURES_DIR="${RECORD_REPLAY_FIXTURES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/fixtures}"
-RECORD_REPLAY_CURRENT_FILE=""
-RECORD_REPLAY_CURRENT_INDEX=0
-RECORD_REPLAY_MODE="${RECORD_REPLAY_MODE:-replay}"  # "replay" or "record"
+# Internal state for the harness. Exported so child processes
+# (the mock hermes -> record-replay-runner.sh) can read these.
+# Use parameter-expansion-with-default to preserve env values that
+# were set before sourcing this file; don't clobber them.
+export RECORD_REPLAY_MODE="${RECORD_REPLAY_MODE:-replay}"  # "replay" or "record"
+export RECORD_REPLAY_FIXTURES_DIR="${RECORD_REPLAY_FIXTURES_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/fixtures}"
+# Initialize the playback index to 0 (sourced by both parent shells and
+# the runner's child shell). sparc_rr_init resets it when the test starts.
+export RECORD_REPLAY_CURRENT_INDEX="${RECORD_REPLAY_CURRENT_INDEX:-0}"
+# Don't overwrite CURRENT_FILE — sparc_rr_init sets it after source.
+# But the runner (exec'd as a separate process) needs to read it;
+# the parent's exported value carries through if we don't reset it.
+# Leave uninitialized if not set; sparc_rr_init or the caller sets it.
 
 # sparc_rr_init <test_name>
 #
@@ -41,7 +49,11 @@ RECORD_REPLAY_MODE="${RECORD_REPLAY_MODE:-replay}"  # "replay" or "record"
 #   command is run in the test.
 sparc_rr_init() {
   local test_name="$1"
-  RECORD_REPLAY_CURRENT_FILE="$RECORD_REPLAY_FIXTURES_DIR/${test_name}.json"
+  export RECORD_REPLAY_CURRENT_FILE="$RECORD_REPLAY_FIXTURES_DIR/${test_name}.json"
+  # Reset the playback index. The runner reads the index from a file
+  # alongside the fixture so the state survives across exec'd
+  # processes. Resetting here ensures each test starts at index 0.
+  printf '%s' 0 > "${RECORD_REPLAY_CURRENT_FILE}.idx"
   RECORD_REPLAY_CURRENT_INDEX=0
   # Create the fixtures dir if missing
   mkdir -p "$RECORD_REPLAY_FIXTURES_DIR" 2>/dev/null || true
@@ -122,18 +134,23 @@ sparc_rr_do_replay() {
     return 1
   fi
 
-  # Extract the interaction at index N (0-based)
+  # Extract the interaction at index N (0-based). Pass the file path
+  # and index as command-line args to avoid bash-interpolating empty
+  # env vars into python source (which produces syntax errors).
   local interaction
-  interaction=$(python3 -c "
-import json, sys
-with open('$RECORD_REPLAY_CURRENT_FILE') as f:
+  interaction=$(RECORD_REPLAY_CURRENT_INDEX="$RECORD_REPLAY_CURRENT_INDEX" \
+               python3 - "$RECORD_REPLAY_CURRENT_FILE" <<'PYEOF'
+import json, os, sys
+fixture = sys.argv[1]
+idx = int(os.environ.get('RECORD_REPLAY_CURRENT_INDEX', '0'))
+with open(fixture) as f:
     interactions = json.load(f)
-idx = $RECORD_REPLAY_CURRENT_INDEX
 if idx >= len(interactions):
     print('EXHAUSTED', file=sys.stderr)
     sys.exit(1)
 print(json.dumps(interactions[idx]))
-")
+PYEOF
+)
 
   local rc=$?
   if [[ $rc -ne 0 ]]; then
@@ -174,7 +191,12 @@ import json, sys
 print(json.load(sys.stdin)['exit_code'])
 ")
 
+  # Persist the new index to a file alongside the fixture. The runner
+  # is exec'd as a separate process; in-memory state doesn't survive.
+  # The index file (".idx" suffix) is the source of truth for the
+  # current playback position. sparc_rr_init resets it on test start.
   RECORD_REPLAY_CURRENT_INDEX=$((RECORD_REPLAY_CURRENT_INDEX + 1))
+  printf '%s' "$RECORD_REPLAY_CURRENT_INDEX" > "${RECORD_REPLAY_CURRENT_FILE}.idx"
   return "$exit_code"
 }
 
@@ -185,14 +207,18 @@ print(json.load(sys.stdin)['exit_code'])
 #   fewer calls than it recorded — likely a code path change.
 sparc_rr_assert_exhausted() {
   if [[ "$RECORD_REPLAY_MODE" == "replay" && -f "$RECORD_REPLAY_CURRENT_FILE" ]]; then
-    local total recorded_idx
+    local total consumed_idx
     total=$(python3 -c "
 import json
 with open('$RECORD_REPLAY_CURRENT_FILE') as f:
     print(len(json.load(f)))
 ")
-    if [[ $RECORD_REPLAY_CURRENT_INDEX -lt $total ]]; then
-      echo "  ! test consumed $RECORD_REPLAY_CURRENT_INDEX of $total recorded interactions" >&2
+    # Read the actual consumed index from the file. The in-process
+    # RECORD_REPLAY_CURRENT_INDEX variable may be stale if the test
+    # ran subshells that updated the file but not the parent shell.
+    consumed_idx=$(cat "${RECORD_REPLAY_CURRENT_FILE}.idx" 2>/dev/null || echo 0)
+    if [[ "$consumed_idx" -lt "$total" ]]; then
+      echo "  ! test consumed $consumed_idx of $total recorded interactions" >&2
       echo "  ! something changed in the code path; re-record with RECORD=1" >&2
       return 1
     fi
