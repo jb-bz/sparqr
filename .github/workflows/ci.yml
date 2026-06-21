@@ -114,37 +114,49 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bash sqlite3 curl jq git python3
 
-      - name: Run integration tests in replay mode (no Docker)
-        # First pass: run against recorded sessions. Fast, no Docker.
-        # Verifies the record-replay harness works.
+      - name: Run integration tests in replay mode (no container)
+        # First pass: run against recorded sessions. Fast, no Docker
+        # needed. Verifies the record-replay harness works.
         run: |
           cd tests/integration
           bash test_setup_against_hermes.sh
 
-      # Note: full Docker-based recording requires the official Hermes
-      # Docker image, which doesn't exist yet (as of writing). When it
-      # does, uncomment the section below and add `services: hermes:`
-      # at the job level to bring up real Hermes.
-      #
-      # - name: Bring up real Hermes in Docker
-      #   run: |
-      #     cd tests/integration
-      #     docker compose up -d hermes
-      #
-      # - name: Record new sessions
-      #   run: |
-      #     cd tests/integration
-      #     RECORD_REPLAY_MODE=record ./run-all.sh
-      #
-      # - name: Verify recorded sessions are valid
-      #   run: |
-      #     cd tests/integration
-      #     bash test_setup_against_hermes.sh
-      #     bash test_single_stage_run.sh
-      #     bash test_two_stage_pipeline.sh
-      #
-      # - name: Tear down Docker
-      #   if: always()
-      #   run: |
-      #     cd tests/integration
-      #     docker compose down
+      - name: Re-record sessions against real Hermes (if container available)
+        # Optional step: only runs if a container runtime is available.
+        # CI runners have Docker by default. Local devs with OrbStack
+        # can run this locally before pushing to verify their changes
+        # work against real Hermes.
+        # The hermes-org/sparqr:0.x Docker image is a placeholder for
+        # when the official Hermes Docker image is published. Until
+        # then, this step is skipped and we rely on the recorded
+        # fixtures from the prior session.
+        env:
+          # Default to docker in CI; allow override via repo variable.
+          # Users can set SPARC_RUNTIME_REPO_VAR in their repo settings
+          # to "orbstack" or "none".
+          SPARC_RUNTIME: ${{ vars.SPARC_RUNTIME || 'docker' }}
+        run: |
+          # Detect which container runtime is available
+          RUNTIME=""
+          if command -v docker >/dev/null 2>&1; then
+            RUNTIME="docker"
+          elif command -v orb >/dev/null 2>&1 || [[ -d "$HOME/.orbstack" ]]; then
+            RUNTIME="orbstack"
+          fi
+
+          if [[ -z "$RUNTIME" ]]; then
+            echo "  ! No container runtime available; skipping re-recording."
+            echo "  ! Integration tests run against the existing recorded fixture."
+            exit 0
+          fi
+
+          echo "  → Using container runtime: $RUNTIME"
+          # The hermes-org/sparqr:0.x image doesn't exist yet. When it
+          # does, uncomment the lines below and replace the image name.
+          #
+          # cd tests/integration
+          # $RUNTIME compose up -d hermes
+          # RECORD_REPLAY_MODE=record ./run-all.sh
+          # $RUNTIME compose down
+          echo "  ! Re-recording step is a no-op until the official Hermes Docker image ships."
+          echo "  ! The recorded fixtures in tests/integration/fixtures/ are the source of truth."
