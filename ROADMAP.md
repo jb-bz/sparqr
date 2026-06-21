@@ -244,7 +244,23 @@ Each release below lists its stories as a numbered list with story points. At th
 
 ---
 
-## v0.3.0 — "Make it pleasant"
+**v0.2.1 — shipped 2026-06-20**
+
+- **Estimated pts:** 12
+- **Actual pts:** 14
+- **Velocity ratio:** 1.17
+- **Stories planned:** 5
+- **Stories shipped:** 5
+- **Stories deferred:** 0
+- **What surprised us:** v0.2.0's `lib/*.sh` had a sentinel-var guard pattern that silently broke every `sparc <subcommand>` invocation in production (unit tests passed because they bypassed the dispatcher); the record-replay harness had 6 bugs; bash 3.2 sed `\U&` doesn't work; mock-based testing cannot catch bugs that exist in both the code and the mock
+- **What we'd do differently:** End-to-end smoke tests are non-negotiable for lib/kanban.sh changes; document "no LLM" mode for integration tests prominently; commit at each real progress point; WIP files for multi-session work; never re-introduce the double-source guard pattern
+- **Full retrospective:** [docs/retrospectives/v0.2.1.md](docs/retrospectives/v0.2.1.md)
+
+**Implication for v0.3.0:** v0.2.1 found and fixed a production-breaking bug that v0.2.0's tests couldn't catch. The integration test framework now works end-to-end and must be run against real Hermes for any future `lib/kanban.sh` changes. Container runtime choice is wired through `setup.sh` (step 5/7) and the CI workflow uses `SPARC_RUNTIME`. v0.3.0 features that need containers can rely on this. The double-source guard pattern is documented as an anti-pattern so it doesn't get reintroduced. Velocity was 1.17 (14 vs 12 estimated) — slightly above 1.0, attributable to the unplanned blocker fix being correctly classified as story 1 scope (verification, not new work).
+
+---
+
+*End of roadmap document. Last review: 2026-06-20. Next review: when v0.3.0 ships, with the v0.3.0 retrospective appended.*
 
 **Theme:** v0.2.0 works. v0.3.0 makes you want to keep using it.
 
