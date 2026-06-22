@@ -1,24 +1,33 @@
 # Dockerfile.demo — Image for the sparqr demo container (v0.4.0 story 2).
 #
-# Builds a slim image with bash, sqlite, curl, jq (sparqr deps) and
-# the local sparqr package. Used by demo/docker-compose.yml.
+# Builds a slim Ubuntu 24.04 image with bash, sqlite, curl, jq,
+# xz-utils (needed by the Hermes installer), python3 + jsonschema,
+# and the local sparqr package.
 
 FROM ubuntu:24.04
 
+# xz-utils is needed by the Hermes installer (it downloads Node.js
+# tarballs compressed with xz). Without it, the Hermes install fails
+# silently inside the curl | bash pipe.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     sqlite3 \
     curl \
-    jq \
+    xz-utils \
     ca-certificates \
     git \
     python3 \
-    python3-jsonschema \
-    && rm -rf /var/lib/apt/lists/*
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --break-system-packages jsonschema
 
-# Install Hermes CLI (the official installer script).
-# See https://hermes-agent.nousresearch.com for the latest install path.
+# Install Hermes CLI. The installer pulls Node.js if not present;
+# with xz-utils installed above, it works correctly.
 RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+
+# Install jq (Hermes's HITL adapter JSON parser needs it).
+RUN apt-get update && apt-get install -y --no-install-recommends jq \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the sparqr package. We use the full package so the demo
 # has all skills, profiles, templates, and examples.
