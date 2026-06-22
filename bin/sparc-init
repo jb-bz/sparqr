@@ -12,6 +12,8 @@ set -euo pipefail
 SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$SPARC_PKG_ROOT/lib/stages.sh"
 source "$SPARC_PKG_ROOT/lib/kanban.sh"
+# source lib/config.sh so we can read sparc.config.yaml (for the board: field)
+source "$SPARC_PKG_ROOT/lib/config.sh"
 
 GOAL="${1:-}"
 
@@ -26,8 +28,20 @@ else
   echo "  ✓ created sparc.config.yaml (edit it to change stage gating, adapter, etc.)"
 fi
 
-# Derive board name from directory
-BOARD="${SPARC_BOARD:-sparc-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')}"
+# Board name precedence:
+#   1. $SPARC_BOARD env var (for tests and one-off overrides)
+#   2. `board:` field in ./sparc.config.yaml (if set and non-empty)
+#   3. Derived from directory name (legacy fallback)
+# This makes the user-facing config field actually take effect, which
+# it didn't before v0.4.x (it was silently overridden by the dir
+# name — see https://github.com/jb-bz/sparqr/issues/... bug).
+if [[ -n "${SPARC_BOARD:-}" ]]; then
+  BOARD="$SPARC_BOARD"
+elif board_in_config=$(sparc_config_get ./sparc.config.yaml board 2>/dev/null) && [[ -n "$board_in_config" ]]; then
+  BOARD="$board_in_config"
+else
+  BOARD="sparc-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')"
+fi
 echo "  • board name: $BOARD"
 
 # 2. Kanban board
@@ -43,7 +57,9 @@ TASK_IDS=()
 PREV_ID=""
 FIRST_STAGE=$(sparc_stage_first)
 for STAGE in $(sparc_stage_all_keys); do
-  TITLE="[$(echo "$STAGE" | tr '[:lower:]' '[:upper:]' | sed 's/^./\U&/')]"
+  # bash 3.2 (macOS default) doesn't interpret \U in sed, so use
+  # awk for first-character uppercase. (Same fix as lib/kanban.sh.)
+  TITLE="[$(echo "$STAGE" | tr '[:lower:]' '[:upper:]' | awk '{print toupper(substr($0,1,1)) substr($0,2)}')]"
   if [[ -n "$GOAL" && "$STAGE" == "$FIRST_STAGE" ]]; then
     TITLE="$TITLE $GOAL"
   elif [[ "$STAGE" == "$FIRST_STAGE" ]]; then
