@@ -56,9 +56,9 @@ The setup script probes each at install time and offers a multi-choice. You can 
 
 All three use the same adapter contract, so switching is one line in `sparc.config.yaml`.
 
-## Notify channels (planned for v0.2.0)
+## Notify channels (planned for v0.4.0)
 
-v0.1.0 does **not** ship a separate notify channel. The HITL adapter IS the notification — when a review is needed, you see it in whichever UI you configured (webui, workspace, dashboard, TUI, or terminal). If you want a chat-gateway ping (Telegram, Discord, Slack, Signal) on top of the HITL adapter, that's planned for v0.2.0. The HITL adapter interface is designed to be pluggable so you can add a chat-gateway adapter as either a HITL surface or a side-channel notify. See [Adding a chat-gateway notifier](#adding-a-chat-gateway-notifier) below.
+v0.1.0 does **not** ship a separate notify channel. The HITL adapter IS the notification — when a review is needed, you see it in whichever UI you configured (webui, workspace, dashboard, TUI, or terminal). If you want a chat-gateway ping (Telegram, Discord, Slack, Signal) on top of the HITL adapter, that's planned for v0.4.0. The HITL adapter interface is designed to be pluggable so you can add a chat-gateway adapter as either a HITL surface or a side-channel notify. See [Adding a chat-gateway notifier](#adding-a-chat-gateway-notifier) below.
 
 ## Authoring a HITL adapter
 
@@ -92,9 +92,9 @@ SPARC_HITL_ADAPTERS=(terminal tui webui workspace official-dashboard my-new-adap
 
 That's it. `sparc adapters` will now list it. `sparc.config.yaml`'s `hitl_adapter: my-new-adapter` will work.
 
-## Authoring a notify channel (v0.2.0)
+## Authoring a notify channel (v0.4.0)
 
-When v0.2.0 lands, the notify channel will live under `lib/adapters/notify/` and follow the same pluggable pattern as HITL adapters. Each notify adapter defines:
+When v0.4.0 lands, the notify channel will live under `lib/adapters/notify/` and follow the same pluggable pattern as HITL adapters. Each notify adapter defines:
 
 ```bash
 # Probe
@@ -105,17 +105,17 @@ notify_<channel>_probe() { ... }
 notify_<channel>_send() { ... }
 ```
 
-To prepare for v0.2.0, you can already author notify adapters today and ship them alongside the package. They'll be auto-discovered at that time.
+To prepare for v0.4.0, you can already author notify adapters today and ship them alongside the package. They'll be auto-discovered at that time.
 
 ## Adding a chat-gateway notifier (today)
 
-If you want a Telegram/Discord/Slack ping TODAY (before v0.2.0 ships the formal notify channel), the supported pattern is:
+If you want a Telegram/Discord/Slack ping TODAY (before v0.4.0 ships the formal notify channel), the supported pattern is:
 
 1. **Add a custom HITL adapter** under `~/.hermes/sparc-package/lib/adapters/hitl/chat-telegram.sh` (or wherever you keep the package) that implements the three HITL functions AND sends a Telegram message as part of `hitl_<name>_notify`. This is a hack — it's driving a chat-gateway notifier through the HITL interface — but it works in v0.1.0 and is a valid stepping stone.
 
-2. **Or wait for v0.2.0** which will split notify from HITL. The interface is already designed (see the stub above); only the directory and dispatch code are missing.
+2. **Or wait for v0.4.0** which will split notify from HITL. The interface is already designed (see the stub above); only the directory and dispatch code are missing.
 
-To track progress on v0.2.0, see the GitHub issues.
+To track progress on v0.4.0, see the GitHub issues.
 
 ## Reversibility-aware gate placement
 
@@ -154,7 +154,7 @@ If you use Plane.so / Linear / Jira in parallel, you can mirror SPARC's kanban s
 2. In your PM tool, set up a project with custom workflow matching `triage | todo | ready | running | blocked | done | archived`
 3. Write a small adapter that pushes SPARC kanban events to the PM tool's API on every state change
 
-A reference implementation is in `examples/hello-sparc/extras/plane-mirror/` (not included in v0.1.0; planned for v0.2.0). See issue #5.
+A reference implementation is in `examples/hello-sparc/extras/plane-mirror/` (not included in v0.1.0; planned for v0.4.0). See issue #5.
 
 ## Reference
 
@@ -163,4 +163,4 @@ A reference implementation is in `examples/hello-sparc/extras/plane-mirror/` (no
 - `bin/sparc-hitl-watcher` — manual HITL management from the CLI
 - `skills/sparc-hitl-watcher/SKILL.md` — the reviewer profile's protocol
 - [ARCHITECTURE.md](ARCHITECTURE.md) — the overall design
-- v0.2.0 will add `lib/adapters/notify/` for chat-gateway pingers
+- v0.4.0 will add `lib/adapters/notify/` for chat-gateway pingers

@@ -45,7 +45,7 @@ No. Hermes Kanban is the durable coordination substrate. The package is built on
 
 In v0.1.0, no. The package is tightly coupled to Hermes Kanban's verb set (`kanban_create`, `kanban_block`, etc.) and its state machine.
 
-You CAN mirror Hermes Kanban state to Plane.so / Linear / Jira as a read-only dashboard (see [HITL.md § Mirroring to an external PM tool](HITL.md#mirroring-to-an-external-pm-tool)). A first-class external-PM integration is planned for v0.2.0.
+You CAN mirror Hermes Kanban state to Plane.so / Linear / Jira as a read-only dashboard (see [HITL.md § Mirroring to an external PM tool](HITL.md#mirroring-to-an-external-pm-tool)). A first-class external-PM integration is planned for v0.4.0.
 
 ## Can I use this with Claude Code / Cursor / Aider?
 
@@ -85,12 +85,13 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md). The maintainers welcome bug reports, 
 
 The canonical roadmap is **[ROADMAP.md](ROADMAP.md)** — read it for the full reasoning, gap analysis, version-by-version plan, what we're explicitly NOT building, and open questions for the maintainer.
 
-The short version:
+The short version (latest release is v0.3.0; v0.4.0 in progress):
 
-- **v0.1.0** (this release) — core package, 6 stages, 5 skills, 5 HITL adapters
-- **v0.2.0** — "make it work reliably": event-based poller, kanban CLI compat shim, stale-task reaper, real reviewer checklist skill, per-stage model routing, integration test suite, CI
-- **v0.3.0** — "make it pleasant": structured HITL gate types, `sparc status` observability, artifact reconciler, log rotation, JSON schema
-- **v0.4.0** — "make it adoptable": `sparc new` interactive template, hosted demo, local web dashboard, chat-gateway notify channels
+- **v0.1.0** — core package, 6 stages, 5 skills, 5 HITL adapters. Shipped.
+- **v0.2.0** — "make it work reliably": event-based poller, kanban CLI compat shim, stale-task reaper, real reviewer checklist skill, per-stage model routing, integration test suite, CI. Shipped (had a production-breaking dispatcher bug, fixed in v0.2.1).
+- **v0.2.1** — "make v0.2.0 actually work": fix the double-source-guard bug, add real-Hermes integration tests, fix bash 3.2 stage-prefix bug. Shipped.
+- **v0.3.0** — "make it pleasant": structured HITL gate types (approval / confidence / sampling / exception), `sparc status` observability, artifact reconciler, log rotation, JSON schema. **Latest stable release.**
+- **v0.4.0** — "make it adoptable": `sparc new` interactive project template, hosted demo via `demo/sparqr.sh`, real-LLM tutorial in `examples/tutorial/`, local web dashboard, chat-gateway notify channels, video walkthrough. **In progress** (`sparc new` + demo shipped; tutorial in flight; dashboard / notify / video pending).
 - **v1.0.0** — "make it a product": stable CLI surface with semver, Hermes marketplace publication, optional multi-user mode
 
 Have a feature request? [Open an issue](https://github.com/jb-bz/sparqr/issues/new?template=feature_request.md) — features get triaged against the roadmap before being added.

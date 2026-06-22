@@ -14,7 +14,7 @@
 [![Bash](https://img.shields.io/badge/Bash-%E2%89%A54.0-4EAA25.svg)](https://www.gnu.org/software/bash/)
 [![CI](https://github.com/jb-bz/sparqr/actions/workflows/ci.yml/badge.svg)](https://github.com/jb-bz/sparqr/actions/workflows/ci.yml)
 [![macOS+Linux](https://img.shields.io/badge/macOS%20%2B%20Linux-tested-success)](https://github.com/jb-bz/sparqr/actions)
-[![Tests](https://img.shields.io/badge/tests-127%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-337%20passing-brightgreen)](tests/)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 </div>
@@ -25,7 +25,9 @@
 
 **sparqr** is a small, focused package that turns [Hermes Agent](https://hermes-agent.nousresearch.com/) into a 6-stage autonomous software development pipeline. It's the methodology of [SPARC](https://github.com/ruvnet/sparc) (Specification → Pseudocode → Architecture → Refinement → Completion) plus a Design phase, made practical with **pluggable human-in-the-loop review gates** and **durable coordination via Hermes Kanban**.
 
-You install it once, run `sparc init "build something"` in any project, and Hermes agents start producing spec → design → pseudo → arch → code → test artifacts in order, with a human review gate at the points that matter.
+You install it once, run `sparc new my-app --type web-app` (or `sparc init "build something"` directly), and Hermes agents start producing spec → design → pseudocode → architecture → refinement → completion artifacts in order, with a human review gate at the points that matter.
+
+For a hands-on tour, see [`examples/tutorial/`](examples/tutorial/) — a real CLI todo project built end-to-end with the pipeline. To try it without installing, see [`demo/sparqr.sh`](demo/sparqr.sh) — a one-command hosted demo that runs the full stack in containers.
 
 > ⚠️ **Single-user only.** sparqr assumes one human operator on one machine. The kanban board lives in your local `~/.hermes/`, the audit trail is in your local SQLite, the reviewer is your single profile. There's no concept of teams, shared boards, multiple reviewers, or role-based access. If two people want to use sparqr on the same project, they currently have to share a machine or the kanban DB. Multi-user / teams / per-role permissions are planned for [v1.0.0](ROADMAP.md#v100--make-it-a-product) — see the [ROADMAP](ROADMAP.md) for the design conversation.
 
@@ -237,10 +239,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports, new HITL adapters, new stag
 ## 🗺️ Roadmap
 
 - **[ROADMAP.md](ROADMAP.md)** is the canonical roadmap — read it for the full reasoning, gap analysis, and version-by-version plan. The short version:
-- **v0.1.0** (this release) — core package, 6 stages, 5 skills, 5 HITL adapters
-- **v0.2.0** — "make it work reliably": event-based poller, kanban CLI compat shim, stale-task reaper, real reviewer checklist skill, per-stage model routing, integration test suite, CI, prerequisites check
-- **v0.3.0** — "make it pleasant": structured HITL gate types (confidence / sampling / exception), `sparc status` observability, artifact reconciler, log rotation, JSON schema
-- **v0.4.0** — "make it adoptable": `sparc new` interactive template, hosted demo, local web dashboard, chat-gateway notify channels, video walkthrough
+- **v0.1.0** — core package, 6 stages, 5 skills, 5 HITL adapters. Shipped.
+- **v0.2.0** — "make it work reliably": event-based poller, kanban CLI compat shim, stale-task reaper, real reviewer checklist skill, per-stage model routing, integration test suite, CI, prerequisites check. Shipped (but had a double-source-guard bug that broke every subcommand in production).
+- **v0.2.1** — "make v0.2.0 actually work": fix the double-source-guard bug, add real-Hermes integration tests via record-replay harness, fix bash 3.2 sed stage-prefix bug. Shipped.
+- **v0.3.0** — "make it pleasant": structured HITL gate types (approval / confidence / sampling / exception), `sparc status` observability, artifact reconciler, log rotation, JSON schema for `sparc.config.yaml`. Shipped.
+- **v0.4.0** — "make it adoptable": `sparc new` interactive project template, hosted demo via `demo/sparqr.sh`, real-LLM tutorial in `examples/tutorial/`, local web dashboard, chat-gateway notify channels, video walkthrough. **In progress** (sparc new + demo done; tutorial in flight; dashboard / notify / video pending).
 - **v1.0.0** — "make it a product": stable CLI surface with semver, Hermes marketplace publication, optional multi-user mode, optional external PM tool mirror
 
 Want to suggest something? Open an issue with the [`feature_request` template](https://github.com/jb-bz/sparqr/issues/new?template=feature_request.md) — features get triaged against the roadmap before being added.

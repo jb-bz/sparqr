@@ -151,7 +151,7 @@ The probe is checking a URL. Check that:
 Not supported in v0.1.0. The HITL adapter IS the notification — when a review is needed, you see it in whichever UI you configured. If you need a chat-gateway ping, you can either:
 
 - Use a HITL adapter that posts to your chat gateway (hack, but works) — see [docs/HITL.md](HITL.md#adding-a-chat-gateway-notifier-today)
-- Wait for v0.2.0 which will ship a proper notify channel
+- Wait for v0.4.0 which will ship a proper notify channel
 
 For chat-gateway integration today, configure your Hermes gateway the standard way (`hermes gateway setup telegram` etc.) and then add a custom HITL adapter that calls the gateway's chat-send API as part of `hitl_<name>_notify`.
 
