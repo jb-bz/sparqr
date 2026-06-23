@@ -1,0 +1,10 @@
+=== kanban snapshot after 3 stages done (spec, design, pseudocode) ===
+captured: 2026-06-22T06:03:38Z
+Board: tutorial-cli-todo (7 other boards — `hermes kanban boards list`)
+
+✓ t_95ec60fb  done      (unassigned)          [SPEC] [SPEC] Build a CLI todo list with JSON persistence
+✓ t_f529a6aa  done      (unassigned)          [DESIGN] [DESIGN]
+✓ t_95e671fb  done      (unassigned)          [PSEUDOCODE] [PSEUDOCODE]
+▶ t_71e8805b  ready     (unassigned)          [ARCHITECTURE] [ARCHITECTURE]
+◻ t_0887af41  todo      (unassigned)          [REFINEMENT] [REFINEMENT]
+◻ t_6086877f  todo      (unassigned)          [COMPLETION] [COMPLETION]
