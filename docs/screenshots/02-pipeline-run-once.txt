@@ -1,0 +1,10 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  $ sparc pipeline run-once (single iteration, debug)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+→ running one iteration…
+
+After this completes, the spec, design, pseudocode, architecture,
+refinement, and completion tasks transition through the kanban DAG
+in order, with each stage writing its artifact to docs/sparc/ and
+the kanban comment thread via sparc_artifact_publish.

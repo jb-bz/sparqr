@@ -65,20 +65,28 @@ sparqr vs. the alternatives:
 
 ## 🖼️ Screenshots
 
-> *Coming soon.* Real screenshots of `sparc pipeline start` in action, the kanban board populated with stage tasks, and a sample HITL review in [hermes-webui](https://github.com/nesquena/hermes-webui) will land in `docs/screenshots/` once we record them. If you want to contribute screenshots from your own setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Real terminal-output captures from running the v0.4.0 demo and the
+`examples/tutorial/` end-to-end pipeline.
 
-In the meantime, here's what the terminal output looks like:
+**Initialize a new project from a template:**
 
-```
-$ sparc pipeline start
-  → starting sparc-pipeline (logs: /Users/you/.hermes/sparc-package/logs/sparc-pipeline.log)
-  ✓ started (PID 78492)
+![sparc new — 6-task DAG created](docs/screenshots/03-sparc-init.png)
 
-$ tail -f /Users/you/.hermes/sparc-package/logs/sparc-pipeline.log
-[14:23:01] sparc-pipeline started (board=sparc-my-app, hitl=webui)
-[14:23:04] spawning stage agent: task=T-001 stage=spec profile=sparc-spec
-[14:23:48] HITL review request: task=T-001 stage=spec artifact=./docs/sparc/spec/T-001.md
-```
+**Watch the pipeline run:**
+
+![sparc pipeline run-once](docs/screenshots/02-pipeline-run-once.png)
+
+**Inspect the kanban board state at any time:**
+
+![sparqr status — kanban board state](docs/screenshots/01-sparc-status.png)
+
+**Smoke test the artifact produced by the pipeline:**
+
+![tutorial.py — smoke test](docs/screenshots/04-tutorial-smoke.png)
+
+For HITL review screenshots and a hermes-webui walkthrough, see
+[docs/screenshots/README.md](docs/screenshots/README.md). To add your
+own, see the rendering instructions at the bottom of that file.
 
 ---
 

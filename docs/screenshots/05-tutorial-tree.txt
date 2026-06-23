@@ -1,0 +1,15 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  $ find examples/tutorial -type f | sort
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+./01-spec/spec.md
+./02-design/design.md
+./06-completion/completion.md
+./README.md
+./architecture/architecture.md
+./pseudocode/pseudocode.md
+./refinement/refinement.md
+./sparc.config.yaml
+./src/tutorial.py
+
+  (Stage artifacts + smoke-tested Python code)

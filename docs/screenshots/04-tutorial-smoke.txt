@@ -1,0 +1,26 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  $ tutorial.py — smoke test (every spec acceptance criterion)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+added todo 1: buy milk
+added todo 2: walk dog
+--- list ---
+[1] [ ] buy milk
+[2] [ ] walk dog
+--- done 1 ---
+marked todo 1 done
+--- list --done ---
+[1] [✓] buy milk
+--- list --open ---
+[2] [ ] walk dog
+--- delete 2 ---
+deleted todo 2
+--- list (after delete) ---
+[1] [✓] buy milk
+--- done 1 (idempotent) ---
+todo 1 already done
+--- done 99 (bad id) ---
+no todo with id 99
+--- frobnicate (unknown cmd) ---
+unknown command: frobnicate
+Usage: tutorial [GLOBAL] <command> [args]

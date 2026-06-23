@@ -1,0 +1,20 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  $ sparc init "Build a CLI that..."
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+→ Initializing SPARC+Design pipeline in: /Users/.../tutorial
+
+  ✓ sparc.config.yaml created (edit it to change stage gating, adapter, etc.)
+  • board name: tutorial-cli-todo
+  → creating board 'tutorial-cli-todo'…
+  Board: tutorial-cli-todo (with sparc-pseudocode-smoke etc.)
+
+→ Creating 6-task DAG (one task per stage)…
+  ✓ [spec] task=t_95ec60fb  profile=sparc-spec
+  ✓ [design] task=t_f529a6aa  profile=sparc-design
+  ✓ [pseudocode] task=t_95e671fb  profile=sparc-pseudocode
+  ✓ [architecture] task=t_71e8805b  profile=sparc-architecture
+  ✓ [refinement] task=t_0887af41  profile=sparc-refinement
+  ✓ [completion] task=t_6086877f  profile=sparc-completion
+
+  SPARC pipeline ready
