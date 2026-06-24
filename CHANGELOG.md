@@ -73,14 +73,102 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned for v0.4.0 ("Make it adoptable")
-- `sparc new` interactive project template (5 pts)
-- Hosted demo via `sparqr.sh` script (8 pts)
+- `sparc new` interactive project template (5 pts) — **shipped in rc1**
+- Hosted demo via `sparqr.sh` script (8 pts) — **shipped in rc1**
 - Local web dashboard (`sparc-dashboard` service, 13 pts — must split)
 - Chat-gateway notify channels (Telegram/Discord/Slack/Signal, 5 pts)
 - Video walkthrough (2 pts)
-- Tutorial repo (3 pts)
+- Tutorial repo (3 pts) — **shipped in rc1**
 
-See `ROADMAP.md` Part 3 for the full v0.4.0 plan.
+## [0.4.0-rc1] - 2026-06-22
+
+First release candidate for v0.4.0 ("Make it adoptable"). Three of six
+stories shipped (16 of 36 story points). Not for production use; intended
+for early adopters who want to try `sparc new` and the hosted demo.
+
+### Added
+- **`sparc new [name] [--type web-app|cli|library|internal-tool]`** — interactive
+  project scaffolder. Asks for project name and type, copies
+  `templates/projects/<type>/` to current dir, substitutes placeholders,
+  runs `sparc init` with the prefilled config. 17 unit tests.
+- **4 project-type templates** under `templates/projects/`:
+  - `web-app/` — approval gates for early stages, confidence for late
+  - `cli/` — confidence for spec/pseudocode, sampling for design, approval for refinement/completion
+  - `library/` — confidence throughout, stricter thresholds (0.95) on design/architecture
+  - `internal-tool/` — sampling throughout (10% review rate)
+  Each template has a prefilled `sparc.config.yaml` with type-appropriate
+  gates and a type-specific `README.md` with quick-start + customization
+  tips. All 4 templates validated against `docs/config-schema.json`.
+- **Hosted demo via `demo/sparqr.sh`** — single-command launcher that
+  brings up the full sparqr + Hermes stack in containers. Detects
+  OrbStack / Docker / none. Subcommands: `up`, `down`, `logs`, `status`,
+  `shell`, `reset`, `help`. Works in GitHub Codespaces via
+  `.devcontainer/devcontainer.json` (3 ports forwarded: 8787, 3000, 9119).
+  Verified end-to-end with OrbStack: both containers up, Hermes dashboard
+  on :8787, demo board + 6 tasks created, pipeline runs once and exits.
+- **`demo/Dockerfile.demo`** — builds the demo container image
+  (Ubuntu 24.04 + Hermes CLI + sparqr + xz-utils for Node.js install).
+- **Tutorial: `examples/tutorial/tutorial-cli-todo`** — complete
+  end-to-end SPARC+Design pipeline run for a CLI todo list with JSON
+  persistence. All 6 stages produced artifacts:
+  - `01-spec/spec.md` (105 lines, **real LLM**)
+  - `02-design/design.md` (109 lines, **real LLM**)
+  - `03-pseudocode/pseudocode.md` (143 lines, **real LLM**)
+  - `04-architecture/architecture.md` (233 lines, hand-written from LLM reasoning)
+  - `05-refinement/refinement.md` + `src/tutorial.py` (311 lines, hand-written from LLM reasoning)
+  - `06-completion/completion.md` (46 lines, **real LLM**)
+  - **Working code:** `src/tutorial.py` is a 311-line Python 3.8+ stdlib
+    CLI; smoke-tested end-to-end; every spec acceptance criterion (US-1..US-5)
+    passes; atomic JSON writes via `tempfile.mkstemp` + `os.replace()`;
+    mode 0600 on first write.
+  - **Provenance transparency:** each artifact has a "Provenance note"
+    section explaining whether it was LLM-emitted or hand-written from
+    LLM reasoning. The MiniMax M3 model hung on file generation for 3 of
+    6 stages despite producing complete reasoning; the hand-written files
+    preserve the LLM's exact reasoning and structure.
+- **5 terminal screenshots** under `docs/screenshots/`:
+  `01-sparc-status.png`, `02-pipeline-run-once.png`, `03-sparc-init.png`,
+  `04-tutorial-smoke.png`, `05-tutorial-tree.png`. Rendered by
+  `bin/render-kanban.py` (text → HTML → headless Chrome → PNG). Embedded
+  in main README and tutorial README. Replaces the previous "Coming soon"
+  placeholder.
+- **Bug fix: `sparc init` honors `board:` config field.** The user-facing
+  `board:` field in `sparc.config.yaml` was previously silently
+  overridden by the directory-name derivation. Precedence: `$SPARC_BOARD`
+  env > `board:` field > directory-derived name. Verified end-to-end
+  against real Hermes v0.17.0: config `board: sparqr-demo` → board
+  `sparqr-demo` (not the old `sparc-demo-project`).
+- **Bug fix: stage-prefix in `bin/sparc-init` titles.** Used bash 3.2
+  `sed 's/^./\U&/'` which doesn't uppercase; switched to `awk toupper(substr(...))`.
+  Same fix as `lib/kanban.sh` from v0.2.1.
+- **Docs clarification: BSM and GitHub PAT are optional.** INSTALL.md
+  now explicitly states Hermes is required but BSM and GitHub PAT are
+  optional. The package has always been BSM-optional at the code level
+  (zero references in `bin/` or `setup.sh`); this just makes it explicit
+  in the docs so users aren't scared off by the BSM setup step.
+- **Docs pass: stale version references.** Updated README.md,
+  docs/HITL.md, docs/TROUBLESHOOTING.md, docs/FAQ.md to reflect v0.2.1,
+  v0.3.0, and v0.4.0-rc1 as shipped. Test badge 127 → 337.
+
+### Changed
+- **Roadmap summary in main README and FAQ now lists v0.2.1 (production
+  bug fix) and v0.3.0 (the latest stable).** v0.4.0 is marked "in progress"
+  with shipped-status per story.
+- **`bin/sparc` help text and dispatcher** updated for `sparc new`,
+  `sparc status`, `sparc config`, `sparc reconciler`, `sparc logrotate`.
+
+### Notes for early adopters
+- The tutorial is the best entry point: clone, install sparqr, then
+  walk through `examples/tutorial/README.md` to see what a real SPARC
+  pipeline produces end-to-end.
+- The hosted demo (`./demo/sparqr.sh up`) is the fastest way to try
+  the full stack without installing anything — it spins up OrbStack /
+  Docker containers with the demo board and 6 task DAG.
+- **Not production-ready:** story 3 (local web dashboard) and story 4
+  (chat-gateway notify channels) are still missing. v0.4.0 stable will
+  ship when those land.
+
+[0.4.0-rc1]: https://github.com/jb-bz/sparqr/releases/tag/v0.4.0-rc1
 
 ## [0.3.0] - 2026-06-21
 

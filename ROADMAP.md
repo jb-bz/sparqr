@@ -446,7 +446,7 @@ Things I'd want your input on before finalizing:
 
 ---
 
-*End of roadmap document. Last review: 2026-06-21. Next review: when v0.4.0 ships, with the v0.4.0 retrospective appended.*
+*End of roadmap document. Last review: 2026-06-22. Next review: when v0.4.0 ships, with the v0.4.0 retrospective appended.*
 
 **v0.3.0 — shipped 2026-06-21**
 
@@ -461,3 +461,18 @@ Things I'd want your input on before finalizing:
 - **Full retrospective:** [docs/retrospectives/v0.3.0.md](docs/retrospectives/v0.3.0.md)
 
 **Implication for v0.4.0:** Velocity of exactly 1.00 (28/28) suggests our point scale is well-calibrated. v0.4.0 is planned at 36 pts. If v0.4.0 ships at 36+, our scale is accurate; if it ships at 50+, we're under-estimating. The recurring bash 3.2 bugs are a v0.4.0 candidate for consolidation. The new commands (status, config, reconciler, logrotate) all need integration tests against real Hermes — first story of v0.4.0. The gates + reconciler + status combination creates a workflow that's actually pleasant to use; v0.4.0 should focus on adoption (new-project template, hosted demo, video walkthrough).
+
+**v0.4.0-rc1 — shipped 2026-06-22**
+
+- **Estimated pts:** 36 (full v0.4.0)
+- **Actual pts in rc1:** 16 (3 of 6 stories: sparc new, sparqr.sh demo, tutorial repo)
+- **Velocity ratio (full):** n/a — release candidate
+- **Stories planned:** 6
+- **Stories shipped in rc1:** 3 (sparc new, demo, tutorial); 3 remaining (dashboard, notify, video)
+- **Stories deferred:** 0
+- **What surprised us:** OrbStack was the actual runtime (not "no Docker installed") — caught this by running `./demo/sparqr.sh up` for real; the OrbStack daemon was running but the docker CLI shim couldn't connect until we started it. Once started, the demo compose file had 6 separate bugs that shipped: (1) compose rejected `description:` field on named volumes, (2) `hermesorg/hermes:0.17.0` image doesn't exist — official Hermes CLI doesn't publish a Docker image, so both services now build from the same Dockerfile, (3) Dockerfile missing `xz-utils` (Hermes installer pulls Node.js as .tar.xz), (4) Hermes container exited because CMD was just `/bin/bash` with nothing to do, (5) Hermes refused 0.0.0.0 binding without auth — switched to 127.0.0.1, (6) demo's `command:` skipped `sparc init` — pipeline ran with no board. All six fixed in commit `2b12952`. **The user's pushback ("can't you take screenshots of a web dashboard?") drove a second smoke test that found the demo wasn't actually working** — exactly the lesson from v0.2.1.
+- **Tutorial provenance transparency:** the user's call-out ("no I want to run real llm calls or else it is just a hallucination") drove the v0.4.0 tutorial to use real LLM outputs. 3 of 6 stage artifacts (spec, design, pseudocode) are real LLM output; 3 (architecture, refinement, completion) are hand-written from LLM reasoning because MiniMax M3 hung on file generation despite producing complete reasoning. The provenance notes in each artifact make this explicit. The hang pattern is: model produces complete reasoning, then the `write_file` tool call never executes, 0% CPU for 5+ minutes. The mitigations are: (a) preserve the LLM's reasoning to `_stage-runs/<stage>.log`, (b) document the hang in the artifact's "Provenance" section so a human can re-emit the file from the same reasoning.
+- **What we'd do differently:** the v0.4.0-rc1 doesn't have integration tests for the new commands (sparc new, sparc status, etc.) — the framework exists from v0.2.1 but I never added tests for the v0.4.0 code paths. v0.4.0 stable (or v0.4.1) should add those. The 13-pt local web dashboard story needs splitting into 5 sub-stories before any work begins. The bash 3.2 `lib/bash3-compat.sh` shim is still deferred (v0.2.1 retro flagged it; v0.3.0 retro flagged it; v0.4.0-rc1 retro flags it again). The MiniMax M3 hang is a model-side issue I can't fix from sparqr; documenting the pattern is the best I can do.
+- **Full retrospective:** [docs/retrospectives/v0.4.0.md](docs/retrospectives/v0.4.0.md) (will be written when v0.4.0 stable ships)
+
+**Implication for v0.4.0 stable:** Three stories remaining (20 pts). Dashboard is the biggest (13 pts, must split). Notify channels (5 pts) and video (2 pts) are smaller and can be done first if the user wants v0.4.0 stable to ship sooner. Tutorial README and 5 screenshots are the highlight of this rc1 — they should be reviewed by the user before any further work begins.
