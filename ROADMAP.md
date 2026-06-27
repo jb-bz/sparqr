@@ -503,3 +503,19 @@ Things I'd want your input on before finalizing:
 Other developers who pick up sparqr don't have to learn the practice from your retros — they get the tooling that scaffolds the practice. The first time someone runs `sparc retro` they see a complete retrospective file with "What surprised us" filled in, and the next time they ship a release they'll know what to expect. The methodology becomes a side effect of the tools, not a separate discipline to maintain.
 
 **Implication for v0.4.0 stable:** v0.4.1 should ship before v0.4.0 stable — the methodology tooling makes the v0.4.0 stable release itself easier to ship (the auto-retro at v0.4.0 stable will be a real test of the feature). Once v0.4.1 lands, v0.4.0 stable is the next step (no more stories remaining; just tag and release).
+
+**v0.4.1 — shipped 2026-06-27**
+
+- **Estimated pts:** 12 (5 stories)
+- **Actual pts:** 12 (5 stories)
+- **Velocity ratio:** 1.00
+- **Stories planned:** 5
+- **Stories shipped:** 5
+- **Stories deferred:** 0
+- **What surprised us:** The 5 stories fit the methodology scaffolding so cleanly that they all shipped at 1.00 velocity — unusual. The auto-generated "What surprised us" section in `sparc retro` was the headline feature and turned out to work better than expected: real prose analyzing commit patterns between releases (e.g., "11 commits in v0.4.0-rc1 with bug-fix patterns detected"). The 13-pt rule enforcement via `sparc config validate` is the kind of soft-enforcement that works because it warns instead of failing — splits happen mid-work and failing CI on a planning issue would be hostile. Bash 3.2 bug count: 0 new bugs (vs. 4+ in v0.3.0). The `lib/bash3-compat.sh` shim is still deferred.
+- **What we'd do differently:** The post-commit hook is opt-in via `sparc init`, which is the right default for a fresh project but could be made the default for v0.5.0 (with an opt-out). The story-points ledger is per-repo and not yet synced across clones — for solo use this is fine, but a team would want a centralized ledger.
+- **Full retrospective:** see `docs/retrospectives/v0.4.1-WIP.md` (auto-generated; review and rename when finalized).
+
+**Implication for v0.4.0 stable:** v0.4.0 stable is now a small step — it just needs the remaining stories from v0.4.0 (notify channels, video walkthrough) tagged and released. The methodology tooling makes the release itself trivial: `sparc retro v0.4.0` after tagging produces the full retro file.
+
+**Implication for v0.5.0:** Story 3 (deferred dashboard) is the only remaining v0.4.0 work. Whether to ship it as v0.5.0 ("make it a dashboard") or as part of v0.4.0 stable is a question for the user. The methodology tooling (v0.4.1) is enough to support multiple humans adopting sparqr without losing the story-points + retros practice.

@@ -22,3 +22,38 @@ stories:
   release: v0.4.0
   notes: ''
   created_at: '2026-06-27T20:52:14+00:00'
+- id: sparc-story-command-17b046
+  name: sparc story command
+  points: 3
+  status: done
+  release: v0.4.1
+  notes: ''
+  created_at: '2026-06-27T23:06:38+00:00'
+- id: config-validate-warns-on-13-pt-2d6a94
+  name: config validate warns on 13-pt
+  points: 2
+  status: done
+  release: v0.4.1
+  notes: ''
+  created_at: '2026-06-27T23:06:38+00:00'
+- id: sparc-retro-auto-generate-54c617
+  name: sparc retro auto-generate
+  points: 3
+  status: done
+  release: v0.4.1
+  notes: ''
+  created_at: '2026-06-27T23:06:38+00:00'
+- id: sparc-velocity-table-6118e0
+  name: sparc velocity table
+  points: 2
+  status: done
+  release: v0.4.1
+  notes: ''
+  created_at: '2026-06-27T23:06:38+00:00'
+- id: post-commit-hook-30f589
+  name: post-commit hook
+  points: 2
+  status: done
+  release: v0.4.1
+  notes: ''
+  created_at: '2026-06-27T23:06:38+00:00'
