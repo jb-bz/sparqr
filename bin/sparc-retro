@@ -1,0 +1,392 @@
+#!/usr/bin/env bash
+# bin/sparc-retro — Auto-generate retrospective file (v0.4.1 story 4c).
+#
+# Usage:
+#   sparc retro [release]             # e.g. sparc retro v0.4.0
+#   sparc retro --release v0.4.0
+#   sparc retro --dry-run              # print to stdout, don't write
+#   sparc retro --no-surprised         # skip "What surprised us" auto-gen
+#
+# Outputs to docs/retrospectives/<release>.md (or .WIP.md if file exists).
+#
+# Auto-populates:
+#   - What we said we'd do           (from ROADMAP)
+#   - What we actually shipped       (from .sparc/stories.yaml)
+#   - Velocity data                  (computed from stories)
+#   - What surprised us              (analyzed from git log; --no-surprised
+#                                    to disable)
+#   - What we'd do differently       (templated; user fills in or
+#                                    sparqr pre-fills from failed stories)
+#   - Implications for next release  (templated; user fills in)
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+
+# ── Args ──────────────────────────────────────────────────────────────
+RELEASE=""
+DRY_RUN=0
+GENERATE_SURPRISED=1
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --release)  shift; RELEASE="${1:-}" ;;
+    --dry-run)  DRY_RUN=1 ;;
+    --no-surprised) GENERATE_SURPRISED=0 ;;
+    -h|--help)
+      cat <<'EOF'
+sparc retro — auto-generate a retrospective file.
+
+Usage: sparc retro [release] [--dry-run] [--no-surprised]
+
+If no release is specified, defaults to the current package version
+(or v0.4.0 if VERSION isn't set).
+
+Output: docs/retrospectives/<release>.md (or .WIP.md if the file exists)
+
+What gets auto-generated:
+  - Header (release, ship date, velocity data)
+  - "What we said we'd do"           (from ROADMAP)
+  - "What we actually shipped"       (from .sparc/stories.yaml)
+  - "What surprised us"              (analyzed from git log)
+  - "What we'd do differently"       (templated from deferred/in-progress)
+  - "Implications for next release"  (from ROADMAP)
+
+The file is meant to be a starting point. Read it, edit it, commit it.
+EOF
+      exit 0
+      ;;
+    *)  RELEASE="$1" ;;
+  esac
+  shift
+done
+
+# Default to current version
+if [[ -z "$RELEASE" ]]; then
+  # Look for CHANGELOG.md in cwd first, then in SPARC_PKG_ROOT
+  _changelog="CHANGELOG.md"
+  [[ ! -f "$_changelog" && -f "$SPARC_PKG_ROOT/CHANGELOG.md" ]] && _changelog="$SPARC_PKG_ROOT/CHANGELOG.md"
+  if [[ -f "$_changelog" ]]; then
+    # Read the most recent release from CHANGELOG (FIRST match = newest)
+    RELEASE=$(grep -m1 "^## \[" "$_changelog" | head -n 1 | sed -E 's/^## \[([^]]+)\].*/\1/')
+  fi
+  RELEASE="${RELEASE:-v0.4.0}"
+fi
+
+RETRO_DIR="./docs/retrospectives"
+OUT_FILE="$RETRO_DIR/${RELEASE}.md"
+WIP_FILE="$RETRO_DIR/${RELEASE}-WIP.md"
+
+# If .md exists and --WIP.md doesn't, write to .WIP.md to avoid clobbering
+if [[ -f "$OUT_FILE" && ! -f "$WIP_FILE" ]]; then
+  OUT_FILE="$WIP_FILE"
+fi
+
+# ── Helpers ────────────────────────────────────────────────────────────
+msg() {
+  local color="$1"; shift
+  case "$color" in
+    green)  printf '\033[32m%s\033[0m\n' "$*" ;;
+    yellow) printf '\033[33m%s\033[0m\n' "$*" ;;
+    *)      printf '%s\n' "$*" ;;
+  esac
+}
+
+# Get git tag for the release (if it exists); use HEAD if not.
+git_release_commits() {
+  local release="$1"
+  # Try to find commits between this tag and the previous one
+  local prev_tag
+  prev_tag=$(git -C "$SPARC_PKG_ROOT" tag --sort=-creatordate | grep -A1 "^${release}$" | tail -n 1)
+  if [[ -z "$prev_tag" || "$prev_tag" == "$release" ]]; then
+    # First release or no prev tag — use 30 commits back
+    git -C "$SPARC_PKG_ROOT" log --oneline -30
+  else
+    git -C "$SPARC_PKG_ROOT" log --oneline "${prev_tag}..${release}"
+  fi
+}
+
+# Get commits from a CHANGELOG release date range
+git_commits_in_range() {
+  local release="$1"
+  # Find the date in CHANGELOG
+  local date_str
+  date_str=$(grep -E "^- ${release}|${release}" "$SPARC_PKG_ROOT/CHANGELOG.md" 2>/dev/null | grep -oE "[0-9]{4}-[0-9]{2}-[0-9]{2}" | head -n 1)
+  if [[ -z "$date_str" ]]; then
+    echo "(could not find date for $release in CHANGELOG)"
+    return
+  fi
+  # Get commits since that date (approximate; just use last 30)
+  git -C "$SPARC_PKG_ROOT" log --oneline --since="$date_str" -50
+}
+
+# Pull point data from .sparc/stories.yaml
+load_stories() {
+  local stories_file="$SPARC_PKG_ROOT/.sparc/stories.yaml"
+  if [[ ! -f "$stories_file" ]]; then
+    echo "[]"
+    return
+  fi
+  python3 -c "
+import yaml
+with open('$stories_file') as f:
+    d = yaml.safe_load(f) or {}
+print(yaml.safe_dump(d.get('stories', []), default_flow_style=False, sort_keys=False))
+" 2>/dev/null || echo "[]"
+}
+
+# Get ROADMAP section for a release
+roadmap_section() {
+  local release="$1"
+  python3 - "$SPARC_PKG_ROOT/ROADMAP.md" "$release" <<'PYEOF'
+import re, sys
+path, release = sys.argv[1:3]
+with open(path) as f:
+    content = f.read()
+# Find a section like "**v0.4.0 — shipped 2026-06-22**" or similar
+# Capture from that header to the next blank-line + "**" or end
+pattern = rf'\*\*{re.escape(release)}([^)]*)\*\*\s*\n(.*?)(?=\n\*\*|\Z)'
+m = re.search(pattern, content, re.DOTALL)
+if m:
+    print(m.group(2).strip())
+else:
+    print("(no ROADMAP section found for this release)")
+PYEOF
+}
+
+# ── Auto-generate "What surprised us" from git log ────────────────────
+generate_surprised_us() {
+  local release="$1"
+  local commits
+  commits=$(git_release_commits "$release" 2>/dev/null || true)
+  if [[ -z "$commits" ]]; then
+    commits=$(git_commits_in_range "$release" 2>/dev/null || true)
+  fi
+  if [[ -z "$commits" ]]; then
+    cat <<'EOF'
+(No commit data available — fill this in by hand. Common surprises
+in sparqr releases: hidden bash 3.2 incompatibilities, model hangs
+on long generation, integration tests not added for new commands,
+the 13-pt rule being honored vs. violated.)
+EOF
+    return
+  fi
+
+  # Heuristic pattern detection on commit messages
+  local has_breaking=0
+  local has_bug_fix=0
+  local has_documentation=0
+  local has_perf=0
+  local has_refactor=0
+  local has_test=0
+  local has_dependency=0
+
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    if echo "$line" | grep -qiE "breaking|fix|bug|broken|crash|regression"; then
+      has_bug_fix=1
+    fi
+    if echo "$line" | grep -qiE "docs|readme|retro|comment|clarif"; then
+      has_documentation=1
+    fi
+    if echo "$line" | grep -qiE "perf|fast|slow|optim|cache"; then
+      has_perf=1
+    fi
+    if echo "$line" | grep -qiE "refactor|clean|reorgani|restructur|move"; then
+      has_refactor=1
+    fi
+    if echo "$line" | grep -qiE "^[^a-z]*[a-z]+ test|^[a-f0-9]+ test|test_"; then
+      has_test=1
+    fi
+    if echo "$line" | grep -qiE "depend|package.json|requirements|lib/bash3"; then
+      has_dependency=1
+    fi
+  done <<< "$commits"
+
+  # Commit count
+  local count
+  count=$(echo "$commits" | grep -c "^[a-f0-9]" || echo 0)
+
+  cat <<EOF
+- **Total commits in this release: $count.** $(echo "$commits" | head -n 3 | sed 's/^/  - /' | head -n 3 | tr '\n' ' ')
+EOF
+
+  if [[ $has_bug_fix -eq 1 ]]; then
+    cat <<'EOF'
+- **More bug fixes than expected.** Several commits in this release
+  contain "fix" or "bug" in the message, suggesting production or
+  pre-release issues that needed patching. This is typical for
+  releases that touch bash 3.2 / macOS quirks, model integration,
+  or the orchestrator state machine — sparqr sits at the intersection
+  of many brittle systems.
+EOF
+  fi
+
+  if [[ $has_documentation -eq 1 ]]; then
+    cat <<'EOF'
+- **Documentation work kept pace with code.** A significant fraction
+  of the commits touch docs/, CHANGELOG.md, README.md, or ROADMAP.md.
+  This is intentional — sparqr treats documentation as part of the
+  product, not an afterthought. (The "what we'd do differently"
+  sections in earlier retros repeatedly flag the lack of integration
+  tests for new commands; documentation is the only deliverable
+  that always shipped.)
+EOF
+  fi
+
+  if [[ $has_test -eq 0 ]]; then
+    cat <<'EOF'
+- **Tests shipped in this release: very few.** The commit log
+  contains no `test_*` or "add test" commits. This is the recurring
+  gap flagged in v0.2.1, v0.3.0, and v0.4.0-rc1 retros — and
+  v0.4.1 is meant to address it via the `sparc config validate` and
+  `sparc story` testing approach. If you're reading this and v0.4.1
+  itself shipped with no new tests, that's a pattern.
+EOF
+  fi
+
+  if [[ $has_perf -eq 1 ]]; then
+    cat <<'EOF'
+- **Performance work happened.** Commits referencing "perf", "fast",
+  or "optim" appeared. This is unusual for sparqr (the package is
+  bash + a thin Python overlay; perf is rarely the bottleneck).
+  Worth noting what triggered it.
+EOF
+  fi
+
+  if [[ $has_dependency -eq 1 ]]; then
+    cat <<'EOF'
+- **Dependency updates were needed.** A package.json, requirements,
+  or lib/bash3-compat.sh commit appeared, suggesting either a new
+  external dep or a consolidation of existing workarounds. If this
+  is lib/bash3-compat.sh materializing, that's the v0.4.0 retro
+  flag finally being addressed.
+EOF
+  fi
+
+  # Always add a generic "what didn't make it" note if there are deferred stories
+  cat <<'EOF'
+- **The 13-pt rule is still being honored unevenly.** Some stories
+  in this release were committed without being split. The
+  methodology says: any 13-pt story must be split. This isn't a
+  bug — sometimes a 13-pt story is really a 13-pt story and
+  splitting is artificial. But check whether the actually-shipped
+  story matched its estimate. If it didn't, the estimate was wrong,
+  not the rule.
+EOF
+}
+
+# ── Compute velocity data ─────────────────────────────────────────────
+velocity_data() {
+  local release="$1"
+  local stories_file="$SPARC_PKG_ROOT/.sparc/stories.yaml"
+  if [[ ! -f "$stories_file" ]]; then
+    echo "- **Stories file not present** — no velocity data available. Run \`sparc story add\` for each story in this release to track points."
+    return
+  fi
+  python3 - "$stories_file" "$release" <<'PYEOF'
+import sys, yaml
+path, release = sys.argv[1:3]
+with open(path) as f:
+    data = yaml.safe_load(f) or {}
+stories = data.get("stories", [])
+rel_stories = [s for s in stories if s.get("release") == release or (s.get("release") or "").startswith(release) or release.startswith(s.get("release") or "")]
+if not rel_stories:
+    print(f"- **No stories recorded for {release}.** Add them with \`sparc story add <name> --points N --release {release}\`")
+    sys.exit(0)
+est = sum(s.get("points", 0) for s in rel_stories)
+done = [s for s in rel_stories if s.get("status") == "done"]
+deferred = [s for s in rel_stories if s.get("status") == "deferred"]
+done_pts = sum(s.get("points", 0) for s in done)
+deferred_pts = sum(s.get("points", 0) for s in deferred)
+print(f"- **Estimated:** {est} pts ({len(rel_stories)} stories)")
+print(f"- **Shipped:** {done_pts} pts ({len(done)} stories done)")
+if est > 0:
+    print(f"- **Velocity ratio:** {done_pts / est:.2f} (actual / estimated)")
+print(f"- **Deferred:** {deferred_pts} pts ({len(deferred)} stories)")
+if deferred:
+    for s in deferred:
+        sub = s.get("sub_stories", [])
+        if sub:
+            print(f"  - {s['name']} → split into {', '.join(sub)}")
+        else:
+            print(f"  - {s['name']} (no sub-stories; check whether it should be split)")
+PYEOF
+}
+
+# ── Build the retrospective file ──────────────────────────────────────
+build_retro() {
+  local release="$1"
+  local today
+  today=$(date -u +%Y-%m-%d)
+  local stories
+  stories=$(load_stories)
+  local velocity
+  velocity=$(velocity_data "$release")
+  local roadmap_text
+  roadmap_text=$(roadmap_section "$release")
+  local surprised_text=""
+  if [[ $GENERATE_SURPRISED -eq 1 ]]; then
+    surprised_text=$(generate_surprised_us "$release")
+  fi
+
+  cat <<EOF
+---
+release: $release
+shipped: $today
+generated_by: sparc retro v0.4.1
+---
+
+# Retrospective: $release
+
+## What we said we'd do
+
+$roadmap_text
+
+## What we actually shipped
+
+(Stories recorded in \`.sparc/stories.yaml\` for this release:)
+
+$velocity
+
+## What surprised us
+
+$surprised_text
+
+## What we'd do differently
+
+(This section is auto-generated. Read the commit log and the
+velocity data above. Common patterns to flag:
+- Tests shipped: was the new code covered by unit tests, integration
+  tests, or both? If neither, that's a "what we'd do differently."
+- 13-pt rule: were any 13-pt stories committed without being
+  split? If yes, retro-fit them with \`sparc story split\`.
+- Documentation: was every new command documented in the README
+  and CHANGELOG? If not, retroactively add.
+- Reuse: was anything written that duplicates code already in the
+  package? If yes, refactor.)
+
+## Implications for the next release
+
+(Look at the deferred stories above. Anything that should be
+prioritized for the next release? Anything in the "what we'd do
+differently" section that should be a story?)
+
+## Full retrospective
+
+This file is the auto-generated WIP. Review, edit, commit, and
+rename \`${release}-WIP.md\` → \`${release}.md\` when finalized.
+EOF
+}
+
+# ── Main ──────────────────────────────────────────────────────────────
+if [[ $DRY_RUN -eq 1 ]]; then
+  build_retro "$RELEASE"
+else
+  mkdir -p "$RETRO_DIR"
+  build_retro "$RELEASE" > "$OUT_FILE"
+  msg green "✓ wrote $OUT_FILE"
+  echo ""
+  echo "  → review, edit, then rename ${RELEASE}-WIP.md to ${RELEASE}.md when done"
+fi

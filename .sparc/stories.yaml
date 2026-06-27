@@ -1,0 +1,24 @@
+schema_version: 1
+default_release: v0.4.0
+stories:
+- id: sparc-new-interactive-template-c4ca8a
+  name: sparc new interactive template
+  points: 5
+  status: done
+  release: v0.4.0
+  notes: ''
+  created_at: '2026-06-27T20:52:14+00:00'
+- id: hosted-demo-via-sparqr-sh-f8f2d3
+  name: Hosted demo via sparqr.sh
+  points: 8
+  status: done
+  release: v0.4.0
+  notes: ''
+  created_at: '2026-06-27T20:52:14+00:00'
+- id: tutorial-repo-with-real-llm-f4541b
+  name: Tutorial repo with real LLM
+  points: 3
+  status: done
+  release: v0.4.0
+  notes: ''
+  created_at: '2026-06-27T20:52:14+00:00'
