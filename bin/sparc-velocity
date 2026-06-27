@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# bin/sparc-velocity — Read all retrospectives and print a velocity table (v0.4.1 story 4d).
+#
+# Usage:
+#   sparc velocity [release...]
+#   sparc velocity --json    # machine-readable
+#   sparc velocity --csv     # csv
+#
+# Reads docs/retrospectives/v0.*.md and parses:
+#   - estimated pts (from ROADMAP summary or front-matter)
+#   - actual pts (from "Shipped: N pts" or velocity data)
+#   - velocity ratio
+#   - stories done / deferred
+#
+# Falls back to .sparc/stories.yaml for releases with no retro file.
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+
+RETRO_DIR="./docs/retrospectives"
+STORIES_FILE="./.sparc/stories.yaml"
+FORMAT="table"
+FILTER_RELEASES=()
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json) FORMAT="json" ;;
+    --csv)  FORMAT="csv" ;;
+    -h|--help)
+      cat <<'EOF'
+sparc velocity — read retrospectives and print a velocity table.
+
+Usage: sparc velocity [release...] [--json|--csv]
+
+If no release is specified, reads all docs/retrospectives/v0.*.md.
+
+For each release, shows:
+  - Estimated / Actual / Velocity ratio
+  - Stories done / deferred
+
+Output formats:
+  table  (default; human-readable)
+  json   (machine-readable)
+  csv    (for spreadsheets)
+
+Data sources (in priority order):
+  1. docs/retrospectives/<release>.md front-matter
+  2. "What we actually shipped" section in the retro
+  3. .sparc/stories.yaml (filtered by release)
+  4. ROADMAP.md (estimated only)
+EOF
+      exit 0
+      ;;
+    *)  # Filter to this release only (filter happens later)
+      FILTER_RELEASES+=("$1")
+      ;;
+  esac
+  shift
+done
+
+# Collect retro files (or filter)
+declare -a RETRO_FILES
+if [[ ${#FILTER_RELEASES[@]} -eq 0 ]]; then
+  for f in "$RETRO_DIR"/v0.*.md "$RETRO_DIR"/v0.*-WIP.md; do
+    [[ -f "$f" ]] || continue
+    RETRO_FILES+=("$f")
+  done
+else
+  for rel in "${FILTER_RELEASES[@]}"; do
+    for f in "$RETRO_DIR/${rel}.md" "$RETRO_DIR/${rel}-WIP.md"; do
+      [[ -f "$f" ]] && RETRO_FILES+=("$f")
+    done
+  done
+fi
+
+# If no retros, fall back to .sparc/stories.yaml
+if [[ ${#RETRO_FILES[@]} -eq 0 ]]; then
+  if [[ ! -f "$STORIES_FILE" ]]; then
+    echo "  (no retros and no .sparc/stories.yaml — run \`sparc story add\` first)" >&2
+    exit 0
+  fi
+  # Synthesize velocity from stories.yaml
+  python3 - "$STORIES_FILE" "$FORMAT" <<'PYEOF'
+import sys, yaml
+path, fmt = sys.argv[1:3]
+with open(path) as f:
+    data = yaml.safe_load(f) or {}
+stories = data.get("stories", [])
+by_release = {}
+for s in stories:
+    by_release.setdefault(s.get("release", "unreleased"), []).append(s)
+rows = []
+for release, sts in sorted(by_release.items()):
+    est = sum(s.get("points", 0) for s in sts)
+    done = [s for s in sts if s.get("status") == "done"]
+    deferred = [s for s in sts if s.get("status") == "deferred"]
+    done_pts = sum(s.get("points", 0) for s in done)
+    deferred_pts = sum(s.get("points", 0) for s in deferred)
+    ratio = done_pts / est if est > 0 else 0
+    rows.append({
+        "release": release,
+        "estimated": est,
+        "actual": done_pts,
+        "velocity": ratio,
+        "stories_done": len(done),
+        "stories_total": len(sts),
+        "stories_deferred": len(deferred),
+        "deferred_pts": deferred_pts,
+    })
+if fmt == "json":
+    import json
+    print(json.dumps(rows, indent=2))
+elif fmt == "csv":
+    if rows:
+        print(",".join(rows[0].keys()))
+        for r in rows:
+            print(",".join(str(r.get(k, "")) for k in rows[0].keys()))
+else:
+    if not rows:
+        print("  (no stories recorded)")
+        sys.exit(0)
+    print(f"{'RELEASE':<14} {'EST':>4} {'ACTUAL':>7} {'RATIO':>6}  {'DONE':>5}/{'-':>3} {'DEF':>3}")
+    print("-" * 60)
+    for r in rows:
+        ratio = r["velocity"]
+        bar = ""
+        if ratio < 0.5: bar = " ← under"
+        elif ratio < 0.9: bar = " ← slightly under"
+        elif ratio < 1.1: bar = " ← on target"
+        else: bar = " ← over"
+        print(f"{r['release']:<14} {r['estimated']:>4} {r['actual']:>7} {ratio:>5.2f}x {r['stories_done']:>5}/{r['stories_total']:>3} {r['stories_deferred']:>3}{bar}")
+PYEOF
+  exit 0
+fi
+
+# Parse retro files
+python3 - "${RETRO_FILES[@]}" "$FORMAT" <<'PYEOF'
+import sys, os, re
+files = sys.argv[1:-1]
+fmt = sys.argv[-1]
+rows = []
+for f in files:
+    with open(f) as fh:
+        content = fh.read()
+    # Extract release from filename
+    release = os.path.basename(f).replace(".md", "").replace("-WIP", "")
+    # Try front-matter
+    fm = re.search(r'^---\s*\n(.*?)\n---', content, re.DOTALL)
+    est = None; actual = None
+    if fm:
+        for line in fm.group(1).splitlines():
+            m = re.match(r'(\w+):\s*(.*)', line)
+            if m:
+                pass  # ignore for now
+    # Try "Estimated: N pts" and "Shipped: N pts" patterns
+    m = re.search(r'(?:Estimated|estimated)[:\s*]+(\d+)\s*pts?', content)
+    if m: est = int(m.group(1))
+    m = re.search(r'(?:Shipped|shipped)[:\s*]+(\d+)\s*pts?', content)
+    if m: actual = int(m.group(1))
+    # Try ROADMAP-style "- **Estimated:** N"
+    if est is None:
+        m = re.search(r'\*\*Estimated[:\s]+(\d+)', content)
+        if m: est = int(m.group(1))
+    if actual is None:
+        m = re.search(r'\*\*Shipped[:\s]+(\d+)', content)
+        if m: actual = int(m.group(1))
+    # Stories done
+    m = re.search(r'(\d+)\s+stories?\s+done', content)
+    stories_done = int(m.group(1)) if m else None
+    m = re.search(r'(\d+)\s+stor(?:y|ies)\s+(?:total|planned)', content)
+    stories_total = int(m.group(1)) if m else None
+    m = re.search(r'(\d+)\s+stor(?:y|ies)\s+deferred', content)
+    stories_deferred = int(m.group(1)) if m else None
+    ratio = (actual / est) if (est and actual) else None
+    rows.append({
+        "release": release,
+        "estimated": est,
+        "actual": actual,
+        "velocity": ratio,
+        "stories_done": stories_done,
+        "stories_total": stories_total,
+        "stories_deferred": stories_deferred,
+    })
+# Sort by release (natural sort)
+def release_key(r):
+    m = re.match(r'v(\d+)\.(\d+)(?:\.(\d+))?(?:-(\w+))?', r["release"])
+    if m:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0), m.group(4) or "")
+    return (0, 0, 0, "")
+rows.sort(key=release_key)
+
+if fmt == "json":
+    import json
+    print(json.dumps(rows, indent=2))
+elif fmt == "csv":
+    if rows:
+        print(",".join(rows[0].keys()))
+        for r in rows:
+            print(",".join(str(r.get(k, "")) for k in rows[0].keys()))
+else:
+    if not rows:
+        print("  (no release data found in retros)")
+        sys.exit(0)
+    print(f"{'RELEASE':<14} {'EST':>4} {'ACTUAL':>7} {'RATIO':>6}  {'DONE':>5}/{'-':>3} {'DEF':>3}   {'NOTES'}")
+    print("-" * 90)
+    for r in rows:
+        ratio = r["velocity"] if r["velocity"] is not None else 0
+        bar = ""
+        if ratio < 0.5: bar = "under"
+        elif ratio < 0.9: bar = "slightly under"
+        elif ratio < 1.1: bar = "on target"
+        else: bar = "over"
+        done = r.get("stories_done", "") or "?"
+        total = r.get("stories_total", "") or "?"
+        deferred = r.get("stories_deferred", "") or "?"
+        ratio_str = f"{ratio:.2f}x" if r["velocity"] is not None else "n/a"
+        est_str = str(r["estimated"]) if r["estimated"] is not None else "?"
+        act_str = str(r["actual"]) if r["actual"] is not None else "?"
+        print(f"{r['release']:<14} {est_str:>4} {act_str:>7} {ratio_str:>6}  {done:>5}/{total:>3} {deferred:>3}   {bar}")
+PYEOF

@@ -178,6 +178,8 @@ Commands:
               Usage: sparc story {add|list|show|update|split|rm} [args]
   retro        Auto-generate a retrospective file (v0.4.1)
               Usage: sparc retro [release] [--dry-run] [--no-surprised]
+  velocity    Read retros and print a velocity table (v0.4.1)
+              Usage: sparc velocity [release] [--json|--csv]
   config      Inspect and validate the sparc config file
               Usage: sparc config {validate|show|schema} [path]
   reconciler  Sync disk artifacts to kanban comment threads
@@ -211,6 +213,7 @@ case "$cmd" in
   status)      exec "$SPARC_PKG_ROOT/bin/sparc-status" "$@" ;;
   story)       exec "$SPARC_PKG_ROOT/bin/sparc-story" "$@" ;;
   retro)       exec "$SPARC_PKG_ROOT/bin/sparc-retro" "$@" ;;
+  velocity)    exec "$SPARC_PKG_ROOT/bin/sparc-velocity" "$@" ;;
   config)      exec "$SPARC_PKG_ROOT/bin/sparc-config" "$@" ;;
   reconciler)  exec "$SPARC_PKG_ROOT/bin/sparc-reconciler" "$@" ;;
   logrotate)   exec "$SPARC_PKG_ROOT/bin/sparc-logrotate" "$@" ;;
