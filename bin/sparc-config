@@ -62,7 +62,7 @@ with open(schema_path) as f:
 try:
     jsonschema.validate(instance=config, schema=schema)
     print(f"  ✓ {config_path}: valid")
-    sys.exit(0)
+    # Don't exit 0 here — continue to the 13-pt story check
 except jsonschema.ValidationError as e:
     print(f"  ✗ {config_path}: INVALID")
     # Show a friendly error path. jsonschema uses JSON pointers.
@@ -75,8 +75,39 @@ except jsonschema.ValidationError as e:
             print(f"      - at {sub_path}: {sub.message}")
     sys.exit(1)
 PYEOF
-    rc=$?
-    exit $rc
+    schema_rc=$?
+
+    # ── 4b: warn on 13-pt stories (warn, don't fail) ─────────────────
+    # Per sparqr methodology, any 13-pt story in 'planned' or
+    # 'in-progress' status must be split into sub-stories of 1/2/3/5/8
+    # pts each. We surface the warning here but never block the
+    # build — splits happen mid-work and failing CI on a planning
+    # issue would be hostile.
+    stories_path="./.sparc/stories.yaml"
+    if [[ -f "$stories_path" ]] && python3 -c "import yaml" 2>/dev/null; then
+      python3 - "$stories_path" <<'PYEOF' || true
+import sys, yaml
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        data = yaml.safe_load(f) or {}
+except Exception:
+    sys.exit(0)
+stories = data.get("stories", [])
+big_stories = [s for s in stories if s.get("points") == 13 and s.get("status") in ("planned", "in-progress")]
+if big_stories:
+    print("")
+    print(f"  ⚠  {len(big_stories)} 13-pt story(ies) in planned/in-progress (methodology says split):")
+    for s in big_stories:
+        sub = s.get("sub_stories", [])
+        marker = " → already split" if sub else " ← needs split"
+        print(f"      {s['id']}  {s['name']}{marker}")
+    print(f"    Run: sparc story split <id> --into '<sub-name>' --points 5 ...")
+PYEOF
+    fi
+
+    # Exit with the schema-validation rc (warnings don't fail the build)
+    exit $schema_rc
     ;;
 
   show)

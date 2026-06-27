@@ -90,3 +90,26 @@ echo "  Next     : sparc pipeline start     (begin the orchestrator daemon)"
 echo "           : sparc pipeline run-once  (single iteration, debug)"
 echo "           : sparc doctor             (validate setup)"
 echo "════════════════════════════════════════════════════════════════════"
+
+# ── v0.4.1 story 4e: post-commit hook (opt-in) ───────────────────────
+# Ask the user whether to install the post-commit hook that nudges
+# them to run `sparc retro` when a release tag is added.
+if [[ -d .git ]]; then
+  if [[ ! -f .git/hooks/post-commit ]] || grep -q "sparqr reminder" .git/hooks/post-commit 2>/dev/null; then
+    printf "  Install sparqr post-commit hook for retro reminders? [y/N] "
+    read -r install_hook
+    if [[ "$install_hook" =~ ^[Yy]$ ]]; then
+      cp "$SPARC_PKG_ROOT/templates/post-commit-hook.sh" .git/hooks/post-commit
+      chmod +x .git/hooks/post-commit
+      echo "  ✓ installed .git/hooks/post-commit (sparqr retro reminder)"
+    fi
+  fi
+fi
+
+# ── v0.4.1 story 4a: story-point ledger (per-repo) ─────────────────
+# .sparc/stories.yaml is created on first `sparc story add`.
+# Reminder so the user knows the methodology exists.
+echo ""
+echo "  Tip: track story points for this project with \`sparc story\`."
+echo "       e.g.: sparc story add 'Build the dashboard' --points 8"
+echo "             sparc story list"
