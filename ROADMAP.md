@@ -476,3 +476,30 @@ Things I'd want your input on before finalizing:
 - **Full retrospective:** [docs/retrospectives/v0.4.0.md](docs/retrospectives/v0.4.0.md) (will be written when v0.4.0 stable ships)
 
 **Implication for v0.4.0 stable:** Three stories remaining (20 pts). Dashboard is the biggest (13 pts, must split). Notify channels (5 pts) and video (2 pts) are smaller and can be done first if the user wants v0.4.0 stable to ship sooner. Tutorial README and 5 screenshots are the highlight of this rc1 — they should be reviewed by the user before any further work begins.
+
+**v0.4.1 — "Make it a methodology"**
+
+**Theme:** v0.4.0-rc1 ships sparqr as an orchestration tool. v0.4.1 makes the methodology reproducible — story points, retros, velocity tracking — so the practice survives across sessions and other humans can adopt it.
+
+**5 sub-stories, 13 pts total:**
+
+1. **`sparc story` command — 3 pts.** Manage story-point estimates per repo. Stories live in `.sparc/stories.yaml` (per-repo, not global, so they travel with the project). Each story has: id, name, points (Fibonacci 1/2/3/5/8/13), status (planned/in-progress/done/deferred), and optional free-form notes. Subcommands: `sparc story add`, `sparc story list`, `sparc story update`, `sparc story show`. The "13 must be split" rule is enforced — adding a 13-pt story emits a warning.
+2. **`sparc config validate` warns on 13-pt stories — 2 pts.** If `.sparc/stories.yaml` has any story in `planned` or `in-progress` with points=13 and no `sub-stories:` field, the config-validate command emits a warning (does not fail the build). Splits happen mid-work, so failing CI on a planning issue would be hostile.
+3. **`sparc retro` command — 3 pts.** Auto-generates a `docs/retrospectives/v0.X.0-WIP.md` from: (a) ROADMAP release summary, (b) git log of v0.X.0 commits, (c) story-point actuals from `.sparc/stories.yaml`. Pre-fills the template with "What we said we'd do", "What we actually shipped", "Velocity data", "Implications for the next release" — AND auto-writes the "What surprised us" and "What we'd do differently" sections by analyzing the commit log and any failure modes that surfaced (e.g., "double-source guard bug" → 13 occurrences of "guarded the function definition" + multiple files affected = "double-source-guard pattern is fragile across exec boundaries"). The user doesn't write anything — they review, edit if needed, commit.
+4. **`sparc velocity` command — 2 pts.** Reads all `docs/retrospectives/v0.*.md`, prints a table: release / estimated / actual / velocity ratio / stories done / stories deferred. Surfaces trends over time. Quick check before estimating new work.
+5. **Post-commit hook for retro reminder — 2 pts.** Installed on `sparc init` (opt-in via `.sparc/config.yaml`). On every commit, if the commit message or the latest tag matches `vX.Y.0`, the hook prints a tip: `sparqr release v0.4.0 detected — run \`sparc retro\` to scaffold the WIP file`. Non-blocking. Disable by removing the hook or setting `sparc.hooks_enabled: false` in config.
+
+**Total: 13 pts.**
+
+**Acceptance criteria for v0.4.1:**
+
+- A new user can `sparc story add` for upcoming work, run the workflow, then `sparc retro` at the end and have a full retrospective file written for them.
+- Velocity table is queryable across all releases (`sparc velocity`).
+- Post-commit hook nudges but doesn't get in the way.
+- The "What surprised us" section is real prose generated from commit analysis, not boilerplate. Sample: review `docs/retrospectives/v0.4.1-WIP.md` after running `sparc retro` and confirm it actually captures what happened.
+
+**Why this matters for adoption:**
+
+Other developers who pick up sparqr don't have to learn the practice from your retros — they get the tooling that scaffolds the practice. The first time someone runs `sparc retro` they see a complete retrospective file with "What surprised us" filled in, and the next time they ship a release they'll know what to expect. The methodology becomes a side effect of the tools, not a separate discipline to maintain.
+
+**Implication for v0.4.0 stable:** v0.4.1 should ship before v0.4.0 stable — the methodology tooling makes the v0.4.0 stable release itself easier to ship (the auto-retro at v0.4.0 stable will be a real test of the feature). Once v0.4.1 lands, v0.4.0 stable is the next step (no more stories remaining; just tag and release).

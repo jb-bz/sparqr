@@ -1,0 +1,464 @@
+#!/usr/bin/env bash
+# bin/sparc-story — Manage story-point estimates per repo (v0.4.1 story 4a).
+#
+# Usage:
+#   sparc story add <name> --points N [--status planned|in-progress|done|deferred]
+#                                       [--notes "..."]
+#   sparc story list
+#   sparc story show <id>
+#   sparc story update <id> [--status <status>] [--points N] [--notes "..."]
+#   sparc story split <id> --into <name1> --points N1 [--name2 --points N2 ...]
+#   sparc story rm <id>
+#
+# Stories live in .sparc/stories.yaml (per-repo). Created on first
+# `sparc story add` if the file doesn't exist. The file is auto-
+# gitignored by `sparc init` so it can be machine-local or in git
+# depending on team preference.
+#
+# The "13 must be split" rule is enforced: adding a 13-pt story emits
+# a warning. Use `sparc story split` to break it into sub-stories.
+#
+# bash 3.2 compatible (no declare -A). Uses python3 for YAML.
+
+set -euo pipefail
+
+SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/stages.sh
+source "$SPARC_PKG_ROOT/lib/stages.sh"
+
+STORIES_FILE=".sparc/stories.yaml"
+DEFAULT_RELEASE="v0.4.0"
+
+# Print a colored message
+msg() {
+  local color="$1"; shift
+  case "$color" in
+    green)  printf '\033[32m%s\033[0m\n' "$*" ;;
+    red)    printf '\033[31m%s\033[0m\n' "$*" ;;
+    yellow) printf '\033[33m%s\033[0m\n' "$*" ;;
+    blue)   printf '\033[34m%s\033[0m\n' "$*" ;;
+    *)      printf '%s\n' "$*" ;;
+  esac
+}
+
+# Ensure .sparc/stories.yaml exists with empty structure.
+ensure_stories_file() {
+  if [[ ! -f "$STORIES_FILE" ]]; then
+    mkdir -p "$(dirname "$STORIES_FILE")"
+    cat > "$STORIES_FILE" <<'YAML'
+# sparqr story-point ledger
+# One entry per story-point estimate. Keep this file in git
+# (or in .gitignore — your team preference) so the velocity
+# tracking survives across sessions.
+
+schema_version: 1
+default_release: v0.4.0
+stories: []
+YAML
+    msg green "created $STORIES_FILE"
+  fi
+}
+
+# Generate a short stable id from a story name (slug + short hash).
+make_id() {
+  local name="$1"
+  python3 -c "
+import re, hashlib, sys
+n = '''$name'''
+slug = re.sub(r'[^a-z0-9]+', '-', n.lower()).strip('-')[:30]
+h = hashlib.sha1(n.encode()).hexdigest()[:6]
+print(f'{slug}-{h}')
+"
+}
+
+# Check whether the python module is available.
+require_python_yaml() {
+  if ! python3 -c "import yaml" 2>/dev/null; then
+    msg red "ERROR: python3 pyyaml module not found."
+    msg red "Install with: pip3 install --user pyyaml"
+    msg red "Or run: pip3 install --break-system-packages pyyaml"
+    exit 1
+  fi
+}
+
+# Run a python helper that operates on $STORIES_FILE.
+run_python() {
+  STORIES_FILE="$STORIES_FILE" python3 "$@"
+}
+
+# Subcommand: add
+cmd_add() {
+  require_python_yaml
+  ensure_stories_file
+  local name="" points="" status="planned" notes=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --points)  shift; points="${1:-}" ;;
+      --status)  shift; status="${1:-}" ;;
+      --notes)   shift; notes="${1:-}" ;;
+      --release) shift; DEFAULT_RELEASE="${1:-}" ;;
+      -h|--help) cmd_add_help; exit 0 ;;
+      *)  name="$1" ;;
+    esac
+    shift
+  done
+  if [[ -z "$name" ]]; then
+    msg red "usage: sparc story add <name> --points N [--status planned|in-progress|done|deferred] [--notes '...']"
+    exit 1
+  fi
+  if [[ -z "$points" ]]; then
+    msg red "usage: sparc story add <name> --points N [...]"
+    exit 1
+  fi
+  if ! [[ "$points" =~ ^(1|2|3|5|8|13)$ ]]; then
+    msg red "ERROR: points must be one of 1, 2, 3, 5, 8, 13 (got: $points)"
+    exit 1
+  fi
+  if ! [[ "$status" =~ ^(planned|in-progress|done|deferred)$ ]]; then
+    msg red "ERROR: status must be one of planned, in-progress, done, deferred (got: $status)"
+    exit 1
+  fi
+
+  local id
+  id=$(make_id "$name")
+
+  if [[ "$points" == "13" ]]; then
+    msg yellow ""
+    msg yellow "⚠  WARNING: 13-pt stories must be split per sparqr methodology."
+    msg yellow "   Use: sparc story split $id --into 'sub-story A' --points 5 --name 'B' --points 8"
+    msg yellow "   Until then, this story will trigger warnings in 'sparc config validate'."
+    msg yellow ""
+  fi
+
+  run_python - "$name" "$points" "$status" "$notes" "$id" "$DEFAULT_RELEASE" <<'PYEOF'
+import os, sys
+name = sys.argv[1]
+points = sys.argv[2]
+status = sys.argv[3]
+notes = sys.argv[4]
+sid = sys.argv[5]
+default_release = sys.argv[6]
+path = os.environ["STORIES_FILE"]
+import yaml
+with open(path) as f:
+    data = yaml.safe_load(f) or {"stories": []}
+# Check for duplicate id
+for s in data.get("stories", []):
+    if s.get("id") == sid:
+        print(f"ERROR: id {sid} already exists (story: {s.get('name')!r})")
+        sys.exit(1)
+# Check for duplicate name within release
+for s in data.get("stories", []):
+    if s.get("name") == name and s.get("release") == default_release:
+        print(f"ERROR: name {name!r} already exists in release {default_release}")
+        sys.exit(1)
+from datetime import datetime, timezone
+new_story = {
+    "id": sid,
+    "name": name,
+    "points": int(points),
+    "status": status,
+    "release": default_release,
+    "notes": notes,
+    "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+}
+data.setdefault("stories", []).append(new_story)
+with open(path, "w") as f:
+    yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+print(f"  ✓ {sid}  [{points:>2} pts]  {name}  ({status})")
+PYEOF
+}
+
+cmd_add_help() {
+  cat <<'EOF'
+sparc story add — register a new story with point estimate.
+
+Usage:
+  sparc story add <name> --points N [--status S] [--notes "..."] [--release R]
+
+Arguments:
+  <name>                 Human-readable story name (used to generate id)
+  --points N             One of 1, 2, 3, 5, 8, 13
+  --status S             planned | in-progress | done | deferred (default: planned)
+  --notes "..."          Free-form notes (optional)
+  --release R            Which release this story is for (default: v0.4.0)
+
+Examples:
+  sparc story add "Set up CI" --points 3
+  sparc story add "Sparc new command" --points 5 --release v0.4.0
+  sparc story add "Notify channels" --points 5 --status in-progress --notes "Telegram + Discord"
+
+If points=13, emits a warning and reminds you to use `sparc story split`
+to break it into sub-stories. The story IS still added (warnings
+are not blockers) but will trigger 'sparc config validate' warnings
+until split.
+EOF
+}
+
+# Subcommand: list
+cmd_list() {
+  require_python_yaml
+  ensure_stories_file
+  run_python - <<'PYEOF'
+import os, sys, yaml
+path = os.environ["STORIES_FILE"]
+with open(path) as f:
+    data = yaml.safe_load(f) or {"stories": []}
+stories = data.get("stories", [])
+if not stories:
+    print("  (no stories yet — add one with: sparc story add <name> --points N)")
+    sys.exit(0)
+# Print a table
+by_release = {}
+for s in stories:
+    by_release.setdefault(s.get("release", "unreleased"), []).append(s)
+print(f"{'ID':<35} {'PTS':>3}  {'STATUS':<13}  {'NAME'}")
+print("-" * 90)
+for release in sorted(by_release.keys()):
+    pts_total = sum(s["points"] for s in by_release[release] if s["status"] != "deferred")
+    pts_done = sum(s["points"] for s in by_release[release] if s["status"] == "done")
+    print(f"# {release}  ({pts_done}/{pts_total} pts done)")
+    for s in by_release[release]:
+        marker = {"done": "✓", "in-progress": "▶", "planned": "◻", "deferred": "⏸"}[s["status"]]
+        print(f"  {s['id']:<35} {s['points']:>3}  {marker} {s['status']:<11}  {s['name']}")
+PYEOF
+}
+
+# Subcommand: show
+cmd_show() {
+  require_python_yaml
+  ensure_stories_file
+  local sid="${1:-}"
+  if [[ -z "$sid" ]]; then
+    msg red "usage: sparc story show <id>"
+    exit 1
+  fi
+  run_python - "$sid" <<'PYEOF'
+import os, sys, yaml
+path = os.environ["STORIES_FILE"]
+with open(path) as f:
+    data = yaml.safe_load(f) or {"stories": []}
+for s in data.get("stories", []):
+    if s.get("id") == sys.argv[1]:
+        print(f"id:        {s.get('id')}")
+        print(f"name:      {s.get('name')}")
+        print(f"points:    {s.get('points')}")
+        print(f"status:    {s.get('status')}")
+        print(f"release:   {s.get('release')}")
+        print(f"notes:     {s.get('notes', '') or '(none)'}")
+        print(f"created:   {s.get('created_at', '?')}")
+        sub = s.get("sub-stories", [])
+        if sub:
+            print(f"sub-stories: {len(sub)}")
+            for ss in sub:
+                print(f"  - {ss.get('id')}: {ss.get('name')} [{ss.get('points')} pts]")
+        sys.exit(0)
+print(f"ERROR: no story with id {sys.argv[1]}")
+sys.exit(1)
+PYEOF
+}
+
+# Subcommand: update
+cmd_update() {
+  require_python_yaml
+  ensure_stories_file
+  local sid="" points="" status="" notes=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --points)  shift; points="${1:-}" ;;
+      --status)  shift; status="${1:-}" ;;
+      --notes)   shift; notes="${1:-}" ;;
+      *)  sid="$1" ;;
+    esac
+    shift
+  done
+  if [[ -z "$sid" ]]; then
+    msg red "usage: sparc story update <id> [--points N] [--status S] [--notes '...']"
+    exit 1
+  fi
+  run_python - "$sid" "$points" "$status" "$notes" <<'PYEOF'
+import os, sys, yaml
+path = os.environ["STORIES_FILE"]
+with open(path) as f:
+    data = yaml.safe_load(f) or {"stories": []}
+sid, points, status, notes = sys.argv[1:5]
+for s in data.get("stories", []):
+    if s.get("id") == sid:
+        if points:
+            if points not in ("1", "2", "3", "5", "8", "13"):
+                print(f"ERROR: invalid points {points}")
+                sys.exit(1)
+            s["points"] = int(points)
+        if status:
+            if status not in ("planned", "in-progress", "done", "deferred"):
+                print(f"ERROR: invalid status {status}")
+                sys.exit(1)
+            s["status"] = status
+        if notes:
+            s["notes"] = notes
+        with open(path, "w") as f:
+            yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+        print(f"  ✓ {sid} updated")
+        sys.exit(0)
+print(f"ERROR: no story with id {sid}")
+sys.exit(1)
+PYEOF
+}
+
+# Subcommand: split
+cmd_split() {
+  require_python_yaml
+  ensure_stories_file
+  local sid="" sub_names=() sub_points=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --into)  shift; sub_names+=("${1:-}") ;;
+      --points) shift; sub_points+=("${1:-}") ;;
+      *)  sid="$1" ;;
+    esac
+    shift
+  done
+  if [[ -z "$sid" ]]; then
+    msg red "usage: sparc story split <id> --into <name1> --points N1 [--into <name2> --points N2 ...]"
+    exit 1
+  fi
+  if [[ ${#sub_names[@]} -ne ${#sub_points[@]} ]]; then
+    msg red "ERROR: --into and --points must be paired (got ${#sub_names[@]} names, ${#sub_points[@]} points)"
+    exit 1
+  fi
+  run_python - "$sid" "${sub_names[@]}" -- "${sub_points[@]}" <<'PYEOF'
+import os, sys, re, yaml, hashlib
+from datetime import datetime, timezone
+path = os.environ["STORIES_FILE"]
+with open(path) as f:
+    data = yaml.safe_load(f) or {"stories": []}
+args = sys.argv[1:]
+sid = args[0]
+sep = args.index("--")
+names = args[1:sep]
+points = args[sep + 1:]
+
+# Find parent
+parent = None
+for s in data.get("stories", []):
+    if s.get("id") == sid:
+        parent = s
+        break
+if not parent:
+    print(f"ERROR: no story with id {sid}")
+    sys.exit(1)
+
+# Create sub-stories as TOP-LEVEL entries (not nested in parent)
+sub_stories = []
+for name, pts in zip(names, points):
+    if pts not in ("1", "2", "3", "5", "8", "13"):
+        print(f"ERROR: invalid sub-story points {pts}")
+        sys.exit(1)
+    sub_slug = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')[:30]
+    h = hashlib.sha1(name.encode()).hexdigest()[:6]
+    sub_id = f"{sub_slug}-{h}"
+    sub_stories.append({
+        "id": sub_id,
+        "name": name,
+        "points": int(pts),
+        "status": "planned",
+        "release": parent.get("release"),
+        "parent_story": sid,
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
+
+# Mark parent as deferred + reference sub-story ids
+parent["status"] = "deferred"
+parent["sub_stories"] = [ss["id"] for ss in sub_stories]
+
+# Add sub-stories to top-level list
+data["stories"].extend(sub_stories)
+
+with open(path, "w") as f:
+    yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+print(f"  ✓ {sid} split into {len(sub_stories)} sub-stories")
+for ss in sub_stories:
+    print(f"    - {ss['id']}  [{ss['points']} pts]  {ss['name']}")
+PYEOF
+}
+
+# Subcommand: rm
+cmd_rm() {
+  require_python_yaml
+  ensure_stories_file
+  local sid="${1:-}"
+  if [[ -z "$sid" ]]; then
+    msg red "usage: sparc story rm <id>"
+    exit 1
+  fi
+  run_python - "$sid" <<'PYEOF'
+import os, sys, yaml
+path = os.environ["STORIES_FILE"]
+with open(path) as f:
+    data = yaml.safe_load(f) or {"stories": []}
+sid = sys.argv[1]
+before = len(data.get("stories", []))
+data["stories"] = [s for s in data.get("stories", []) if s.get("id") != sid]
+after = len(data["stories"])
+if before == after:
+    print(f"ERROR: no story with id {sid}")
+    sys.exit(1)
+with open(path, "w") as f:
+    yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+print(f"  ✓ {sid} removed")
+PYEOF
+}
+
+# Top-level dispatch
+case "${1:-help}" in
+  add)     shift; cmd_add "$@" ;;
+  list|ls) cmd_list ;;
+  show)    shift; cmd_show "$@" ;;
+  update)  shift; cmd_update "$@" ;;
+  split)   shift; cmd_split "$@" ;;
+  rm|del)  shift; cmd_rm "$@" ;;
+  help|--help|-h)
+    cat <<'EOF'
+sparc story — manage story-point estimates per repo.
+
+Usage: sparc story <subcommand> [...]
+
+Subcommands:
+  add <name> --points N     Register a new story (Fibonacci 1/2/3/5/8/13)
+  list                       List all stories grouped by release
+  show <id>                  Show one story's details
+  update <id> [--points N]   Update a story's points/status/notes
+       [--status S]
+       [--notes "..."]
+  split <id> --into N1 --points P1   Mark a 13-pt story as split into
+             [--into N2 --points P2 ...]   sub-stories
+  rm <id>                    Delete a story
+
+The 13-pt rule:
+  A 13-pt story is a code smell. The sparqr methodology requires
+  it be split into sub-stories of 1/2/3/5/8 pts each. `sparc story add`
+  with --points 13 emits a warning; `sparc config validate` warns on
+  any 13-pt story that's still in `planned` or `in-progress` status.
+
+Storage:
+  Stories live in .sparc/stories.yaml (per-repo, not global). The
+  file is auto-created on first `add` if missing. By default it's
+  committed to git so velocity tracking survives across sessions,
+  but teams can add `.sparc/` to .gitignore for local-only.
+
+Examples:
+  sparc story add "Set up CI" --points 3
+  sparc story add "Sparc new command" --points 5 --release v0.4.0
+  sparc story add "Notify channels" --points 5 --status in-progress
+  sparc story list
+  sparc story show sparc-new-cmd-1a2b3c
+  sparc story update notify-channels-1a2b3c --status done
+  sparc story split sparc-story-1a2b3c --into "Sparc story sub-A" --points 5 --into "Sparc story sub-B" --points 8
+EOF
+    ;;
+  *)
+    msg red "sparc story: unknown subcommand: $1"
+    msg red "  try: sparc story help"
+    exit 2
+    ;;
+esac

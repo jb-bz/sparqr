@@ -14,8 +14,19 @@
 
 set -euo pipefail
 
-# Resolve package root (this file is at <pkg>/bin/sparc)
-SPARC_PKG_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve package root (this file is at <pkg>/bin/sparc).
+# Follow symlinks so the wrapper works when invoked via ~/.local/bin/sparc
+# without requiring the realpath to be on PATH.
+_SPARC_REAL="${BASH_SOURCE[0]}"
+if [ -L "$_SPARC_REAL" ]; then
+  _SPARC_REAL="$(readlink "$_SPARC_REAL")"
+  # If readlink returned a relative path, resolve it relative to the symlink dir
+  case "$_SPARC_REAL" in
+    /*) ;;
+    *)  _SPARC_REAL="$(dirname "${BASH_SOURCE[0]}")/$_SPARC_REAL" ;;
+  esac
+fi
+SPARC_PKG_ROOT="$(cd "$(dirname "$_SPARC_REAL")/.." && pwd)"
 export SPARC_PKG_ROOT
 
 # Source lib
@@ -163,6 +174,8 @@ Commands:
   stages      List configured stages
   status      Cross-pipeline observability (boards, counts, running, blocked)
               Usage: sparc status [--board <slug>] [--json]
+  story       Manage story-point estimates per repo (v0.4.1)
+              Usage: sparc story {add|list|show|update|split|rm} [args]
   config      Inspect and validate the sparc config file
               Usage: sparc config {validate|show|schema} [path]
   reconciler  Sync disk artifacts to kanban comment threads
@@ -194,6 +207,7 @@ case "$cmd" in
   hitl)        exec "$SPARC_PKG_ROOT/bin/sparc-hitl-watcher" "$@" ;;
   doctor)      exec "$SPARC_PKG_ROOT/bin/sparc-doctor" "$@" ;;
   status)      exec "$SPARC_PKG_ROOT/bin/sparc-status" "$@" ;;
+  story)       exec "$SPARC_PKG_ROOT/bin/sparc-story" "$@" ;;
   config)      exec "$SPARC_PKG_ROOT/bin/sparc-config" "$@" ;;
   reconciler)  exec "$SPARC_PKG_ROOT/bin/sparc-reconciler" "$@" ;;
   logrotate)   exec "$SPARC_PKG_ROOT/bin/sparc-logrotate" "$@" ;;
