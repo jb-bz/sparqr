@@ -504,6 +504,18 @@ Other developers who pick up sparqr don't have to learn the practice from your r
 
 **Implication for v0.4.0 stable:** v0.4.1 should ship before v0.4.0 stable — the methodology tooling makes the v0.4.0 stable release itself easier to ship (the auto-retro at v0.4.0 stable will be a real test of the feature). Once v0.4.1 lands, v0.4.0 stable is the next step (no more stories remaining; just tag and release).
 
+**v0.4.0 — shipped 2026-06-28**
+
+- **Estimated pts:** 12 (5 stories; 13-pt dashboard deferred to v0.5.0, 2-pt video deferred as genuinely human-only)
+- **Actual pts:** 12 (5 stories)
+- **Velocity ratio:** 1.00
+- **Stories planned:** 5
+- **Stories shipped:** 5
+- **Stories deferred:** 2 (dashboard → v0.5.0, video → v0.4.1+)
+- **What surprised us:** The chat-gateway notify channels shipped on schedule because the interface (`notify_<name>_probe` + `notify_<name>_send`) is so simple that 6 channels are basically free. Discord was the working example with full Block-Kit-style embed; Telegram/Slack/Signal all followed the same probe-then-send pattern. The Hermes coexistence question came up immediately — the answer is "same env vars, different endpoints" (gateway = bidirectional chat, sparqr notify = one-way push). The 13-pt rule from v0.4.1 retro is honored: dashboard got deferred to v0.5.0 before it shipped as 13 pts. Bash 3.2 bug count: 0 (the lib/bash3-compat.sh shim is still deferred but didn't bite this time).
+- **What we'd do differently:** The notify channels only fire on `hitl-review` events. `stage-done` and `stage-failed` events would be a real value-add — knowing a stage completed without having to look at the kanban. Defer to v0.4.1. The hermes-workspace integration should be a first-class HITL adapter config (not just a builtin) — it's currently registered but the user has to know it exists. Consider adding a "what HITL adapter should I use?" wizard in `sparc init`.
+- **Full retrospective:** [docs/retrospectives/v0.4.0-WIP.md](docs/retrospectives/v0.4.0-WIP.md) (auto-generated; review and rename when finalized).
+
 **v0.4.1 — shipped 2026-06-27**
 
 - **Estimated pts:** 12 (5 stories)

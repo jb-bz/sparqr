@@ -79,6 +79,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sparc velocity` command — read retros and print a table (2 pts)
 - Post-commit hook for retro reminders (2 pts)
 
+## [0.4.0] - 2026-06-28
+
+The full v0.4.0 "make it adoptable" release. The local web dashboard
+remains deferred to v0.5.0 (per user feedback — the existing Hermes
+dashboards and `hermes-workspace` are sufficient), but everything
+else in v0.4.0 has shipped. **All 5 of the remaining v0.4.0 stories
+landed (5/5, 12/12 pts, velocity 1.00).** The video walkthrough
+story is genuinely human-only and was deferred to v0.4.1+.
+
+### Added
+- **Chat-gateway notify channels (story 4, 5 pts).** Six built-in
+  channels broadcast HITL review events: `log` (always-on, appends
+  to `~/.hermes/sparc-package/logs/notify.log`), `kanban` (always-on,
+  posts as a kanban comment), `discord` (webhook, working example),
+  `telegram` (Bot API), `slack` (incoming webhook), `signal`
+  (signal-cli REST). Auto-detected from env vars. Probes are
+  credential-only (no network calls). Configured via a new
+  `notify:` block in `sparc.config.yaml`.
+
+- **Discord example was the working example.** Full Block-Kit-style
+  embed with title, body, optional URL button. Other channels use
+  the same probe-then-send pattern.
+
+- **Coexistence with Hermes gateway chat platforms.** The gateway
+  uses Telegram/Discord/Slack/Signal for bidirectional agent chat.
+  sparqr's notify uses the same env vars but different endpoints for
+  one-way push. Same bot, no conflict.
+
+### Stats
+- 5 of 5 remaining v0.4.0 stories shipped.
+- 442 unit tests + 11 integration assertions, all passing.
+- Velocity: 1.00 (12 estimated, 12 actual).
+- 0 bash 3.2 compatibility bugs in this release.
+
+### Deferred to v0.5.0
+- **Local web dashboard (13 pts)** — per user feedback.
+- **Video walkthrough (2 pts)** — genuinely human-only.
+
+[0.4.0]: https://github.com/jb-bz/sparqr/releases/tag/v0.4.0
+
 ## [0.4.1] - 2026-06-27
 
 The methodology release. v0.4.0-rc1 shipped the orchestration

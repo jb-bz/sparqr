@@ -14,7 +14,7 @@
 [![Bash](https://img.shields.io/badge/Bash-%E2%89%A54.0-4EAA25.svg)](https://www.gnu.org/software/bash/)
 [![CI](https://github.com/jb-bz/sparqr/actions/workflows/ci.yml/badge.svg)](https://github.com/jb-bz/sparqr/actions/workflows/ci.yml)
 [![macOS+Linux](https://img.shields.io/badge/macOS%20%2B%20Linux-tested-success)](https://github.com/jb-bz/sparqr/actions)
-[![Tests](https://img.shields.io/badge/tests-416%20passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-442%20passing-brightgreen)](tests/)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 </div>
@@ -311,8 +311,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports, new HITL adapters, new stag
 - **v0.3.0** — "make it pleasant": structured HITL gate types (approval / confidence / sampling / exception), `sparc status` observability, artifact reconciler, log rotation, JSON schema for `sparc.config.yaml`. Shipped.
 - **v0.4.0-rc1** — "make it adoptable" (rc1): `sparc new` interactive project template, hosted demo via `demo/sparqr.sh`, real-LLM tutorial in `examples/tutorial/`. Shipped (3 of 6 stories: 16/16 pts).
 - **v0.4.1** — "make it a methodology": `sparc story` (story-point ledger), `sparc retro` (auto-generate retrospectives from git log), `sparc velocity` (velocity table across releases), 13-pt warnings in `sparc config validate`, post-commit hook for retro reminders. Shipped (5 of 5 stories: 12/12 pts, velocity 1.00). [Release notes](https://github.com/jb-bz/sparqr/releases/tag/v0.4.1)
-- **v0.4.0 stable** — pending: tag + release when chat-gateway notify channels + video walkthrough land.
-- **v0.5.0** — Local web dashboard (sparc-dashboard service), hermes-workspace integration as a first-class HITL adapter, multi-human coordination.
+- **v0.4.0** — full v0.4.0 "make it adoptable": adds chat-gateway notify channels (Discord/Telegram/Slack/Signal) to v0.4.0-rc1. Local web dashboard deferred to v0.5.0 (per user feedback — "yet another dashboard is crowded"); video walkthrough deferred as genuinely human-only. Shipped (5 of 5 remaining stories: 12/12 pts, velocity 1.00). [Release notes](https://github.com/jb-bz/sparqr/releases/tag/v0.4.0)
+- **v0.5.0** — Local web dashboard (sparc-dashboard service, 13 pts), stage-done/stage-failed notify events, hermes-workspace as first-class HITL adapter.
 - **v1.0.0** — "make it a product": stable CLI surface with semver, Hermes marketplace publication, optional multi-user mode, optional external PM tool mirror
 
 Want to suggest something? Open an issue with the [`feature_request` template](https://github.com/jb-bz/sparqr/issues/new?template=feature_request.md) — features get triaged against the roadmap before being added.

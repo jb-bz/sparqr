@@ -57,3 +57,17 @@ stories:
   release: v0.4.1
   notes: ''
   created_at: '2026-06-27T23:06:38+00:00'
+- id: chat-gateway-notify-channels-85c63f
+  name: chat-gateway notify channels
+  points: 5
+  status: done
+  release: v0.4.0
+  notes: ''
+  created_at: '2026-06-28T02:31:43+00:00'
+- id: 13-pt-warnings-in-config-valid-2eb884
+  name: 13-pt warnings in config validate
+  points: 2
+  status: done
+  release: v0.4.0
+  notes: ''
+  created_at: '2026-06-28T02:31:43+00:00'
