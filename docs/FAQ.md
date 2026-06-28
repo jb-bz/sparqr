@@ -9,6 +9,7 @@
 - **What is sparqr?** See the [README](../README.md).
 - **How does it work?** See [ARCHITECTURE.md](ARCHITECTURE.md).
 - **How do I install?** See [INSTALL.md](INSTALL.md).
+- **What commands are available?** See [COMMANDS.md](COMMANDS.md) — canonical CLI reference.
 - **How do I add a new stage or HITL surface?** [ADDING-STAGES.md](ADDING-STAGES.md) · [HITL.md](HITL.md).
 - **What's the roadmap?** See [ROADMAP.md](../ROADMAP.md) for the plan, and [docs/retrospectives/](retrospectives/) for what we actually shipped.
 - **Something broke?** [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
@@ -61,7 +62,66 @@ Those are general-purpose multi-agent frameworks. This package is a methodology 
 
 ## Do the stage agents share memory?
 
-No. Each profile has its own memory namespace. This is intentional: stage N's memory should not contaminate stage N+1's. The "memory" that flows between stages is the artifact + the kanban comment thread.
+Yes — via Hermes's memory subsystem. Each stage agent reads from `~/.hermes/memories/` (USER.md, MEMORY.md, plus any project-specific memories) before the stage runs. Findings from earlier stages land in the comment thread on the kanban task; later stages read those threads via the parent task's comments. The cross-stage context is the kanban DAG plus the comment threads.
+
+If you're using `hermes-workspace` as your HITL adapter, the Memory panel in the workspace UI shows what each agent sees.
+
+---
+
+## What's `sparc story` for? Why not just track points in a spreadsheet?
+
+`sparc story` is the methodology layer for point tracking. Three things it adds beyond a spreadsheet:
+
+1. **Per-repo ledger** (`.sparc/stories.yaml`) — stories travel with the project, so any clone has the velocity context
+2. **The 13-pt rule** — `add` with 13 pts emits a warning, `split` creates sub-stories as top-level entries, `config validate` warns on unsplit 13-pt stories in `planned`/`in-progress` status
+3. **Velocity data feeds retros** — `sparc retro` reads the ledger to populate the "What we actually shipped" section with actual point totals, and `sparc velocity` reads it to compute ratios
+
+The 13-pt rule is the methodology's main value-add over a spreadsheet. Without it, teams silently let 13-pt stories slip; with it, the warning surfaces in every `config validate` run.
+
+---
+
+## What's `sparc retro`? Do I have to write anything?
+
+`sparc retro` auto-generates a retrospective file from your git log and story ledger. **You do not have to write anything** — the script produces:
+
+- The "What we said we'd do" section (pulled from ROADMAP)
+- The "What we actually shipped" section (with velocity data from `.sparc/stories.yaml`)
+- The "What surprised us" section (analyzed from your commit messages between the previous and current release tag — real prose, not boilerplate)
+- Templated stubs for "What we'd do differently" and "Implications for the next release" (you fill these in, or accept the auto-hints)
+
+The workflow:
+
+```bash
+git tag v0.5.0                          # post-commit hook nudges you
+sparc retro v0.5.0 --dry-run           # preview to stdout
+sparc retro v0.5.0                     # writes docs/retrospectives/v0.5.0-WIP.md
+# edit the file, commit, rename to v0.5.0.md when finalized
+```
+
+The output is a starting point — review, edit, commit. The "What surprised us" section is the most useful part: it's generated from actual commit patterns (bug-fix clusters, docs work, perf changes, dependency updates, test coverage gaps).
+
+---
+
+## What's `sparc velocity` for?
+
+`sparc velocity` reads all `docs/retrospectives/v0.*.md` and prints a table:
+
+```
+$ sparc velocity
+RELEASE         EST  ACTUAL  RATIO   DONE/  - DEF   NOTES
+v0.4.0-rc1       16      16  1.00x      3/  3   0   on target
+v0.4.1           12      12  1.00x      5/  5   0   on target
+```
+
+Use it to:
+
+- **Check velocity trends over time** — are you consistently under- or over-estimating?
+- **Pick up velocity from a fresh clone** — `sparc velocity` works with no setup, just reads the retro files
+- **Compare releases** — JSON/CSV output (`--json` or `--csv`) for spreadsheet analysis
+
+The "on target" / "under" / "over" labels in the NOTES column flag releases that drifted significantly from the estimate.
+
+---
 
 ## Can two SPARC pipelines run in parallel?
 

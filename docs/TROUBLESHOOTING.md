@@ -10,6 +10,7 @@ If `sparc doctor` is happy but something is broken, start here. If `sparc doctor
 
 - **What is sparqr?** See the [README](../README.md).
 - **How does it work?** See [ARCHITECTURE.md](ARCHITECTURE.md).
+- **What commands are available?** See [COMMANDS.md](COMMANDS.md) — canonical CLI reference.
 - **Common questions** → [FAQ.md](FAQ.md).
 - **Spotted a bug?** [File an issue](https://github.com/jb-bz/sparqr/issues/new?template=bug_report.md).
 
@@ -192,10 +193,52 @@ This is left as an exercise; not implemented in v0.1.0. If you build it, please 
   ```
 - Spec / Design / Pseudocode are good candidates for cheaper models. Refinement / Completion want the strongest.
 
+## Methodology tooling (sparc story / retro / velocity)
+
+### `sparc story add --points 7` rejects the points value
+The point scale is Fibonacci: 1, 2, 3, 5, 8, 13. Other values are rejected at `add` time. If your estimate is genuinely 7, you have three options:
+- Round down to 5 (most common)
+- Round up to 8
+- Split into two stories (5 + 2 or 3 + 5)
+
+### `sparc config validate` warns about 13-pt stories
+The 13-pt warning is by design. The methodology says: split a 13-pt story into sub-stories of 1/2/3/5/8 pts each. `sparc config validate` exits 0 (warn, don't fail) but surfaces the warning so it can't be ignored.
+
+To split:
+```bash
+sparc story split my-story-1a2b3c \
+    --into "Sub A" --points 5 \
+    --into "Sub B" --points 8
+```
+The parent is marked `deferred`, the sub-stories become top-level entries linked via `parent_story`.
+
+### `sparc retro` doesn't see my latest commits
+The retro command uses `git log <prev_tag>..<release>` to detect commits. If your release tag isn't found, fall back to date-based detection (`git log --since=<CHANGELOG-date>`). If both fail, the file says "(no commit data available — fill this in by hand)."
+
+Common cause: you tagged the release AFTER running `sparc retro`. Run retro after tagging.
+
+### `sparc velocity` shows `?` for older releases
+Pre-v0.4.1 retrospectives were hand-written without the standard format (Estimated / Actual / Velocity / Stories done / Deferred). `sparc velocity` parses the markdown but can't extract fields it doesn't find. Two options:
+- Edit the old retro to include the standard fields
+- Add stories for that release to `.sparc/stories.yaml` so velocity data comes from the ledger instead
+
+### `sparc retro --dry-run` is empty
+The release wasn't auto-detected from CHANGELOG. Either:
+- Specify it explicitly: `sparc retro v0.5.0`
+- The CHANGELOG.md doesn't have a `## [vX.Y.Z]` section yet
+
+### Post-commit hook didn't print a reminder
+The hook fires only when:
+- A tag was just added at HEAD, OR
+- The commit message references `vX.Y.Z`
+
+If neither applies (e.g., normal feature commit), no reminder. To verify the hook is installed: `ls -la .git/hooks/post-commit`. To uninstall: `rm .git/hooks/post-commit`.
+
 ## Getting more help
 
 1. `sparc doctor` — automated health check
-2. `sparc --help` and `sparc <subcommand> --help` — command reference
+2. `sparc --help` and `sparc <subcommand> --help` — command reference (full list at [COMMANDS.md](COMMANDS.md))
 3. The log files in `~/.hermes/sparc-package/logs/`
 4. The kanban DB — `sqlite3 ~/.hermes/kanban/boards/<slug>/kanban.db` to inspect
-5. File an issue on GitHub
+5. Re-run `sparc story list`, `sparc velocity`, `sparc config validate` to surface state issues
+6. File an issue on [GitHub](https://github.com/jb-bz/sparqr/issues/new?template=bug_report.md)

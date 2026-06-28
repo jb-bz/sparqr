@@ -10,6 +10,7 @@ This guide walks through importing the package into a running Hermes install. If
 
 - **What is sparqr?** See the [README](../README.md) for the elevator pitch.
 - **How does it work?** See [ARCHITECTURE.md](ARCHITECTURE.md).
+- **What commands are available?** See [COMMANDS.md](COMMANDS.md) — canonical CLI reference.
 - **I just want to use it** → see [Per-project setup](#per-project-setup).
 - **Something broke** → [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - **I want to extend it** → [HITL.md](HITL.md) or [ADDING-STAGES.md](ADDING-STAGES.md).
@@ -112,8 +113,29 @@ Then: `sparc-new "Build the cool app"`.
 
 ## Verifying the install
 
+After `./setup.sh` completes, run:
+
 ```bash
+# One-stop health check (recommended)
 sparc doctor
+
+# Inspect what was installed
+sparc adapters           # HITL adapters available
+sparc stages             # the 6 stages with profile/skill mappings
+
+# Validate your config (if you've already initialized a project)
+cd your-project/
+sparc config validate
+sparc config show        # resolved config (board, hitl_adapter, profiles, gates)
+
+# Check the methodology tooling is wired
+sparc story --help       # story-point commands
+sparc retro --help       # auto-retro generator
+sparc velocity --help    # velocity table
+
+# Confirm Hermes is reachable
+hermes --version
+hermes kanban boards list
 ```
 
 You should see all checks passing or warning. Common warnings and how to fix them:
@@ -121,6 +143,9 @@ You should see all checks passing or warning. Common warnings and how to fix the
 - `sparc not on PATH` → add `export PATH="$HOME/.local/bin:$PATH"` to your shell rc
 - `webui/workspace not detected` → expected, unless you have those UIs running
 - `sparc.config.yaml not in current dir` → expected if you're not in a project; only a warning
+- `jsonschema not installed` → `pip3 install --user jsonschema` (needed for full schema validation; without it, doctor falls back to a simpler parser)
+
+If `sparc doctor` is silent (no output), that's the success signal — everything is wired correctly.
 
 ---
 

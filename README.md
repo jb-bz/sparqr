@@ -124,6 +124,45 @@ sparc pipeline start
 
 ---
 
+## 🔄 A typical workflow
+
+Here's what a complete project looks like end-to-end. Assume you've already run `./setup.sh`.
+
+```bash
+# 1. Track story points for the upcoming release
+sparc story add "Build a CLI that reverses input lines" --points 3
+sparc story add "Add JSON persistence" --points 5 --status planned
+sparc story add "Full REST API surface" --points 13  # ⚠️ 13-pt warning
+sparc story list
+
+# 2. Initialize the pipeline (creates board + 6 tasks)
+sparc init "Build a CLI that reverses input lines"
+#   ✓ [spec] task=t_abc123  profile=sparc-spec
+#   ✓ [design] task=t_def456  profile=sparc-design
+#   ...
+
+# 3. Start the orchestrator (long-running daemon)
+sparc pipeline start
+#   → watches the board, picks up ready tasks, runs each stage agent
+
+# 4. Observe what's happening
+sparc status                          # board + task counts
+sparc story list                      # story progress
+
+# 5. When done, generate the retrospective
+git tag v0.5.0                        # post-commit hook nudges you
+sparc retro v0.5.0 --dry-run          # preview
+sparc retro v0.5.0                   # write docs/retrospectives/v0.5.0-WIP.md
+
+# 6. Velocity check
+sparc velocity                        # table across releases
+```
+
+The full CLI reference (every flag, every subcommand, every example)
+is at **[docs/COMMANDS.md](docs/COMMANDS.md)**.
+
+---
+
 ## 🏛️ The 6 stages
 
 ```
@@ -229,12 +268,31 @@ test_validators.sh                9 pass  ·  0 fail
 
 ## 📚 Documentation
 
+### Quick links
+
 - **[INSTALL.md](docs/INSTALL.md)** — Detailed install walkthrough, troubleshooting, idempotency
+- **[COMMANDS.md](docs/COMMANDS.md)** — Canonical CLI reference for every `sparc` subcommand, with examples and `--help` output
+- **[FAQ.md](docs/FAQ.md)** — Frequently asked questions, version history
+- **[ROADMAP.md](ROADMAP.md)** — Release-by-release planning + retrospectives
+- **[CHANGELOG.md](CHANGELOG.md)** — Per-version changelog
+
+### Concepts
+
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — How the pieces fit, with diagrams
 - **[HITL.md](docs/HITL.md)** — Human-in-the-loop adapters, how to author one
 - **[ADDING-STAGES.md](docs/ADDING-STAGES.md)** — How to add/remove/reorder stages
+
+### Operations
+
 - **[TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** — Common failure modes and fixes
-- **[FAQ.md](docs/FAQ.md)** — Frequently asked questions
+- **[screenshots/README.md](docs/screenshots/README.md)** — Terminal-output screenshots (5/5 polished renders)
+- **[screenshots/workspace/README.md](docs/screenshots/workspace/README.md)** — Real hermes-workspace UI captures (9 screenshots)
+
+### Examples
+
+- **[examples/tutorial/README.md](examples/tutorial/README.md)** — End-to-end tutorial: spec → working code, real LLM artifacts
+- **[examples/hello-sparc/README.md](examples/hello-sparc/README.md)** — Minimal "hello world" pipeline
+- **[demo/sparqr.sh](demo/sparqr.sh)** — One-command hosted demo (OrbStack / Docker / Codespace)
 
 ---
 
@@ -251,7 +309,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports, new HITL adapters, new stag
 - **v0.2.0** — "make it work reliably": event-based poller, kanban CLI compat shim, stale-task reaper, real reviewer checklist skill, per-stage model routing, integration test suite, CI, prerequisites check. Shipped (but had a double-source-guard bug that broke every subcommand in production).
 - **v0.2.1** — "make v0.2.0 actually work": fix the double-source-guard bug, add real-Hermes integration tests via record-replay harness, fix bash 3.2 sed stage-prefix bug. Shipped.
 - **v0.3.0** — "make it pleasant": structured HITL gate types (approval / confidence / sampling / exception), `sparc status` observability, artifact reconciler, log rotation, JSON schema for `sparc.config.yaml`. Shipped.
-- **v0.4.0** — "make it adoptable": `sparc new` interactive project template, hosted demo via `demo/sparqr.sh`, real-LLM tutorial in `examples/tutorial/`, local web dashboard, chat-gateway notify channels, video walkthrough. **In progress** (sparc new + demo done; tutorial in flight; dashboard / notify / video pending).
+- **v0.4.0-rc1** — "make it adoptable" (rc1): `sparc new` interactive project template, hosted demo via `demo/sparqr.sh`, real-LLM tutorial in `examples/tutorial/`. Shipped (3 of 6 stories: 16/16 pts).
+- **v0.4.1** — "make it a methodology": `sparc story` (story-point ledger), `sparc retro` (auto-generate retrospectives from git log), `sparc velocity` (velocity table across releases), 13-pt warnings in `sparc config validate`, post-commit hook for retro reminders. Shipped (5 of 5 stories: 12/12 pts, velocity 1.00). [Release notes](https://github.com/jb-bz/sparqr/releases/tag/v0.4.1)
+- **v0.4.0 stable** — pending: tag + release when chat-gateway notify channels + video walkthrough land.
+- **v0.5.0** — Local web dashboard (sparc-dashboard service), hermes-workspace integration as a first-class HITL adapter, multi-human coordination.
 - **v1.0.0** — "make it a product": stable CLI surface with semver, Hermes marketplace publication, optional multi-user mode, optional external PM tool mirror
 
 Want to suggest something? Open an issue with the [`feature_request` template](https://github.com/jb-bz/sparqr/issues/new?template=feature_request.md) — features get triaged against the roadmap before being added.

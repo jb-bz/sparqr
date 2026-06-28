@@ -83,3 +83,9 @@ These screenshots were captured for v0.4.1 docs pass. They prove
 that sparqr's `lib/adapters/hitl/workspace.sh` adapter can target a
 real hermes-workspace instance running on `localhost:3000`. No code
 changes were needed in sparqr; the adapter is wired and ready.
+
+## See also
+
+- **[COMMANDS.md](../COMMANDS.md)** — CLI reference for `sparc hitl`, `sparc adapters`, etc.
+- **[HITL.md](../HITL.md)** — how to choose between terminal / webui / workspace / dashboard
+- **[../README.md](../../README.md)** — top-level docs

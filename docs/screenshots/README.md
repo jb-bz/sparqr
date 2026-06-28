@@ -13,6 +13,7 @@ headlessly screenshotted).
 | `03-sparc-init.png` | `sparc init "Build a CLI..."` | main README (Quick start) |
 | `04-tutorial-smoke.png` | `tutorial.py` end-to-end smoke test | `examples/tutorial/README.md` |
 | `05-tutorial-tree.png` | `find examples/tutorial -type f` | `examples/tutorial/README.md` |
+| `workspace/` | (subdirectory) | See [workspace/README.md](workspace/README.md) for 9 real hermes-workspace UI captures |
 
 ## How these are generated
 
@@ -41,10 +42,14 @@ python3 bin/render-kanban.py "My command" screenshots/my-command.txt screenshots
 # ![My command](docs/screenshots/my-command.png)
 ```
 
-## Why no real Hermes dashboard screenshots?
+## Why no Hermes desktop-app screenshots?
 
-The Hermes webui (started via `hermes dashboard --port 8787`) renders
-a React SPA that connects to a backend gateway. The frontend requires
-a desktop-app session token, so headless browsers can't get past
-the auth screen. The kanban-board-as-text screenshots above are a
-faithful substitute and don't require running infrastructure.
+The Hermes desktop app (Electron) is authenticated via a session
+token from the desktop IPC bridge. Headless Chrome can't get past
+this auth screen. We use `hermes-workspace` (a separate web UI) for
+real browser screenshots — see [workspace/README.md](workspace/README.md).
+
+## See also
+
+- **[workspace/README.md](workspace/README.md)** — 9 real hermes-workspace UI captures
+- **[COMMANDS.md](../COMMANDS.md)** — CLI reference (every `sparc` subcommand with `--help` output)
