@@ -118,3 +118,25 @@ artifacts:
 # Default: ~/.hermes/sparc-package/logs/
 # Override only if you want project-local logs (e.g. for CI artifacts).
 log_dir: ~/.hermes/sparc-package/logs
+
+# Notification channels (v0.4.0). By default, all channels with
+# credentials set are auto-enabled. The "log" and "kanban" channels
+# are always on (no credentials needed). The "discord", "telegram",
+# "slack", and "signal" channels are auto-enabled by their env vars:
+#   DISCORD_WEBHOOK_URL              (Discord webhook, not bot)
+#   TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID  (Telegram bot)
+#   SLACK_WEBHOOK_URL                (Slack incoming webhook)
+#   SIGNAL_API_URL + SIGNAL_RECIPIENT      (signal-cli REST)
+#
+# If you want to RESTRICT which channels fire (e.g., a CI project
+# that shouldn't ping Telegram), set the `channels:` list explicitly:
+#   notify:
+#     channels: [log, kanban]
+#     events:   [hitl-review]
+#
+# Events: "hitl-review" is the only one in v0.4.0. "stage-done" and
+# "stage-failed" are coming in v0.4.1.
+# See docs/COMMANDS.md for full setup details.
+# notify:
+#   channels: [log, kanban, discord]
+#   events:   [hitl-review]

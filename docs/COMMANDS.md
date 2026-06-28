@@ -26,6 +26,7 @@ at the time of the v0.4.1 release. To regenerate them locally, run
 - [`sparc hitl`](#sparc-hitl)
 - [`sparc doctor`](#sparc-doctor)
 - [`sparc adapters`](#sparc-adapters)
+- [Notify channels (Discord / Telegram / Slack / Signal)](#notify-channels-discord--telegram--slack--signal)
 - [`sparc stages`](#sparc-stages)
 - [`sparc status`](#sparc-status)
 - [`sparc story`](#sparc-story)
@@ -373,12 +374,13 @@ No flags.
 
 ## `sparc adapters`
 
-List the HITL adapters and notify channels that are bundled with the
-package. Read-only — just enumerates `lib/adapters/hitl/*.sh` and
-`lib/adapters/notify/*.sh`.
+List the HITL adapters **and notify channels** that are bundled with
+the package. Read-only — just enumerates `lib/adapters/hitl/*.sh` and
+`lib/adapters/notify/*.sh` and probes their availability.
 
 Use this to see what's available before editing `sparc.config.yaml`
-to point `hitl_adapter:` at one.
+to point `hitl_adapter:` at one, or before setting env vars to enable
+a notify channel.
 
 ### Verbatim `--help`
 
@@ -393,10 +395,95 @@ Bundled HITL adapters (lib/adapters/hitl/*.sh):
   official-dashboard  hermes dashboard on :9119
 
 Bundled notify channels (lib/adapters/notify/*.sh):
-  log               write notifications to sparc-pipeline.log
-  kanban            post notifications as kanban comments
+  log               write notifications to sparc-pipeline.log (always on)
+  kanban            post notifications as kanban comments (always on)
+  discord           Discord webhook (DISCORD_WEBHOOK_URL)
+  telegram          Telegram bot API (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
+  slack             Slack incoming webhook (SLACK_WEBHOOK_URL)
+  signal            signal-cli REST API (SIGNAL_API_URL + SIGNAL_RECIPIENT)
 
-No flags. For details on choosing an adapter, see docs/HITL.md.
+For HITL adapter details, see docs/HITL.md. For notify channel
+setup, see "Notify channels" below.
+```
+
+---
+
+## Notify channels (Discord / Telegram / Slack / Signal)
+
+sparqr has 6 built-in notify channels. When the orchestrator's HITL
+review is requested, every available channel fires the same
+notification (one broadcast, multiple sends).
+
+| Channel | Always-on? | Auth | What it does |
+|---------|------------|------|--------------|
+| `log` | ✅ | none | Appends to `~/.hermes/sparc-package/logs/notify.log` |
+| `kanban` | ✅ | none | Posts a comment to a `sparqr-notify` task on the same board |
+| `discord` | auto | `DISCORD_WEBHOOK_URL` | Posts an embed to a Discord channel via webhook |
+| `telegram` | auto | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | Sends a message via Telegram Bot API |
+| `slack` | auto | `SLACK_WEBHOOK_URL` | Posts Block Kit message to a Slack channel via incoming webhook |
+| `signal` | auto | `SIGNAL_API_URL` + `SIGNAL_RECIPIENT` | Sends via signal-cli REST daemon (must be running) |
+
+"auto" means: enabled automatically when the credentials are in the env.
+"Always-on" means: no credentials needed, always fires.
+
+### Setup
+
+**Discord** (easiest):
+
+1. Server Settings → Integrations → Webhooks → New Webhook
+2. Copy the webhook URL
+3. `export DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/...'` in `~/.hermes/.env`
+
+**Telegram:**
+
+1. Message [@BotFather](https://t.me/BotFather) → `/newbot` → get the token
+2. Send `/start` to your bot (so it can message you)
+3. Get your chat ID: message [@userinfobot](https://t.me/userinfobot), it replies with your numeric ID
+4. `export TELEGRAM_BOT_TOKEN=...` and `export TELEGRAM_CHAT_ID=...` in `~/.hermes/.env`
+
+**Slack:**
+
+1. [api.slack.com/messaging/webhooks](https://api.slack.com/messaging/webhooks) → Create your Slack app → Incoming Webhooks → Add to channel
+2. Copy the webhook URL
+3. `export SLACK_WEBHOOK_URL='https://hooks.slack.com/services/...'` in `~/.hermes/.env`
+
+**Signal:**
+
+1. Install [signal-cli](https://github.com/AsamK/signal-cli)
+2. Register: `signal-cli -u +1XXX register` (one-time)
+3. Start the daemon: `signal-cli -u +1XXX daemon --http enabled` (must be running on the API URL)
+4. `export SIGNAL_API_URL=http://127.0.0.1:8080` and `export SIGNAL_RECIPIENT=+1XXX` in `~/.hermes/.env`
+
+### Restricting channels
+
+By default, all available channels fire. To restrict (e.g., a CI project that shouldn't ping Telegram), add to `sparc.config.yaml`:
+
+```yaml
+notify:
+  channels: [log, kanban, discord]  # only these
+  events:   [hitl-review]            # only this event type
+```
+
+### Coexistence with the Hermes gateway's chat platforms
+
+The Hermes gateway has its own messaging platforms (Telegram, Discord, Slack, Signal) under `gateway.platforms.*` — these are for **bidirectional agent chat** (the user DMs the agent, the agent DMs back). sparqr's notify channels are **one-way push** (the pipeline posts a notification, no reply expected). They use the same env vars (`TELEGRAM_BOT_TOKEN`, `DISCORD_WEBHOOK_URL`, etc.) but different endpoints (`/sendMessage` for one-way, `/getUpdates` for bidirectional). Same bot, no conflict.
+
+### Events
+
+In v0.4.0, only `hitl-review` events fire notifications. The planned
+`stage-done` and `stage-failed` events are deferred to v0.4.1.
+
+### Manually send a notification
+
+```bash
+# Source the registry (in a script)
+source $PKG/lib/adapters/notify/_registry.sh
+
+# Send a one-off to one channel
+notify_send discord "Test" "Hello from sparqr" "https://example.com"
+
+# Broadcast to all available channels
+notify_broadcast "Test" "Hello everyone" ""
 ```
 
 ---

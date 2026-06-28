@@ -117,6 +117,31 @@
           "description": "Where to look for artifact files on disk. Default: ./docs/sparc"
         }
       }
+    },
+    "notify": {
+      "type": "object",
+      "description": "Notification channels (v0.4.0). Auto-detected from env: log + kanban are always on; discord/telegram/slack/signal require credentials. See docs/COMMANDS.md § notify channels for setup.",
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "type": "array",
+          "description": "Restrict to a subset of channels. Default: all available (probed at runtime). Useful for project-specific overrides (e.g., a CI project that only wants kanban + log, no chat).",
+          "items": {
+            "type": "string",
+            "enum": ["log", "kanban", "discord", "telegram", "slack", "signal"]
+          },
+          "uniqueItems": true
+        },
+        "events": {
+          "type": "array",
+          "description": "Which events to notify on. Default: ['hitl-review']. More events (stage-done, stage-failed) coming in v0.4.1.",
+          "items": {
+            "type": "string",
+            "enum": ["hitl-review"]
+          },
+          "uniqueItems": true
+        }
+      }
     }
   }
 }

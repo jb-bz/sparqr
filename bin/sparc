@@ -40,6 +40,8 @@ source "$SPARC_PKG_ROOT/lib/artifacts.sh"
 source "$SPARC_PKG_ROOT/lib/validators.sh"
 # shellcheck source=../lib/adapters/hitl/_registry.sh
 source "$SPARC_PKG_ROOT/lib/adapters/hitl/_registry.sh"
+# shellcheck source=../lib/adapters/notify/_registry.sh
+source "$SPARC_PKG_ROOT/lib/adapters/notify/_registry.sh"
 
 # Version
 SPARC_VERSION="0.1.0"
@@ -104,8 +106,22 @@ sparc_cmd_adapters() {
     fi
   done
   echo ""
-  echo "Tip: to add a chat-gateway notify channel (Telegram, Discord, Slack, etc.),"
-  echo "see docs/HITL.md § Adding a chat-gateway notifier. v0.1.0 ships HITL only."
+
+  # v0.4.0: notify channels
+  if declare -F notify_list_channels >/dev/null; then
+    echo "Notify channels (probe status):"
+    for c in $(notify_list_channels); do
+      if notify_probe "$c" 2>/dev/null; then
+        echo "  ✓ $c"
+      else
+        echo "  · $c  (no credentials)"
+      fi
+    done
+    echo ""
+    echo "Tip: set DISCORD_WEBHOOK_URL, TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID,"
+    echo "SLACK_WEBHOOK_URL, or SIGNAL_API_URL+SIGNAL_RECIPIENT to enable a channel."
+    echo "See docs/COMMANDS.md § notify channels for setup."
+  fi
 }
 
 sparc_cmd_stages() {

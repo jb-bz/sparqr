@@ -43,6 +43,8 @@ source "$SPARC_PKG_ROOT/lib/config.sh"
 source "$SPARC_PKG_ROOT/lib/gates.sh"
 # shellcheck source=../lib/adapters/hitl/_registry.sh
 source "$SPARC_PKG_ROOT/lib/adapters/hitl/_registry.sh"
+# shellcheck source=../lib/adapters/notify/_registry.sh
+source "$SPARC_PKG_ROOT/lib/adapters/notify/_registry.sh"
 
 LOG_DIR="${SPARC_LOG_DIR:-$HOME/.hermes/sparc-package/logs}"
 mkdir -p "$LOG_DIR"
@@ -156,6 +158,16 @@ once_tick() {
 
     # Surface the review request via the configured adapter
     hitl_notify "$SPARC_HITL_ADAPTER" "$SPARC_BOARD" "$task_id" "$stage" "$artifact"
+
+    # v0.4.0: also broadcast via notify channels (log/kanban always,
+    # plus discord/telegram/slack/signal if creds are set). Failures
+    # in any single channel are non-blocking — the HITL surface is
+    # the source of truth.
+    notify_broadcast \
+      "sparqr: HITL review needed — ${stage}" \
+      "Task ${task_id} on board ${SPARC_BOARD} is awaiting review.\nArtifact: ${artifact}" \
+      "" \
+      2>/dev/null || true
 
     # Block until human replies
     local reply
