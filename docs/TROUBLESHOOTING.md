@@ -128,7 +128,7 @@ Almost always a validation failure. The orchestrator re-spawns the same stage wh
 
 ```bash
 source $SPARC_PKG_ROOT/lib/validators.sh
-sparc_validate_specification <board> <task>
+sparc_validate_spec <board> <task>
 ```
 
 ## HITL
