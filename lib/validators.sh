@@ -15,13 +15,17 @@
 # Source dependencies (no guards; re-sourcing is idempotent)
 source "$(dirname "${BASH_SOURCE[0]}")/artifacts.sh"
 
-# sparc_validate_specification <board> <task_id>
+# sparc_validate_spec <board> <task_id>
 # Pass conditions:
 #   1. The artifact file exists
 #   2. It contains at least one user story ("As a " or "Given/When/Then")
 #   3. It contains at least one acceptance criterion ("Acceptance Criteria" header)
 #   4. It contains a Success Metrics section
-sparc_validate_specification() {
+#
+# Named sparc_validate_spec (not _specification) so it matches the other 5
+# stage validators in SPARC_STAGES_TABLE — bin/sparc-doctor checks
+# `sparc_validate_$stage_key` and stage_key for spec is just "spec".
+sparc_validate_spec() {
   local board="$1" task_id="$2"
   local content
   content=$(sparc_artifact_read "$board" "spec" "$task_id" 2>/dev/null) || {
@@ -159,7 +163,7 @@ sparc_validate_completion() {
 sparc_validate() {
   local stage="$1" board="$2" task_id="$3"
   case "$stage" in
-    spec)         sparc_validate_specification "$board" "$task_id" ;;
+    spec)         sparc_validate_spec "$board" "$task_id" ;;
     design)       sparc_validate_design "$board" "$task_id" ;;
     pseudocode)   sparc_validate_pseudocode "$board" "$task_id" ;;
     architecture) sparc_validate_architecture "$board" "$task_id" ;;

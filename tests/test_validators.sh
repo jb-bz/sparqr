@@ -60,7 +60,7 @@ As a user, I want x, so that y.
 
 ## Out of Scope
 - nothing"
-if sparc_validate_specification "test-board" "good" 2>/dev/null; then
+if sparc_validate_spec "test-board" "good" 2>/dev/null; then
   ok "good spec passes"
 else
   fail "good spec should pass"
@@ -76,7 +76,7 @@ test
 
 ## Constraints
 - none"
-if sparc_validate_specification "test-board" "bad-no-stories" 2>/dev/null; then
+if sparc_validate_spec "test-board" "bad-no-stories" 2>/dev/null; then
   fail "bad spec (no user stories) should fail"
 else
   ok "bad spec (no user stories) correctly fails"
