@@ -378,6 +378,278 @@ project/
 [Link the "what we'd do differently" to specific stories]
 ```
 
+## Methodology: story points, velocity, retrospectives
+
+The practices below are the methodology half of a complete doc base.
+They make the planning and reflection side of a project
+reproducible across sessions and other humans. They are independent
+of any specific project management tool — the doc base can be
+implemented in a spreadsheet, a YAML file in the repo, a kanban
+board's metadata, or any combination.
+
+If the project uses these practices, the `docs/ROADMAP.md` and
+`docs/retrospectives/vX.Y.Z.md` files in the doc base become
+substantively richer: instead of "TBD" or aspirational lists, the
+roadmap has point-estimated stories, and the retro has actual
+velocity data and concrete "what we'd do differently" items
+sourced from the release's actual work.
+
+### Story points
+
+**Concept:** Story points are a unit of effort estimate for
+individual pieces of work. They are used to plan releases, track
+velocity, and identify work that is too large.
+
+**The point scale:** Fibonacci: 1, 2, 3, 5, 8, 13. Why Fibonacci?
+The gaps between values grow as estimates get bigger, which is
+exactly what you want — small stories are easy to differentiate
+(1 vs 2 vs 3), large stories are not (12 vs 13 vs 14 — they're all
+"huge"). **Reject other values.** The scale is intentionally
+non-linear; allowing 4 or 6 or 10 reintroduces the false precision
+that Fibonacci is designed to remove.
+
+**The 13-pt rule:** A 13-pt story is a code smell. It means "I
+don't know what this is." Split it into sub-stories of 1/2/3/5/8
+pts each. The 13-pt label exists as an upper bound to force the
+split — it's the warning, not the size. Story-tracking tools should
+emit a warning at add time and warn again at validation time
+(warn-don't-fail; splits happen mid-work and failing CI on a
+planning issue is hostile).
+
+**Story fields:** Each story has at minimum:
+- An id (stable; safe to rename the name without changing the id)
+- A name (human-readable; used to generate the id)
+- Points (one of 1/2/3/5/8/13)
+- Status (`planned`, `in-progress`, `done`, `deferred`)
+- Release (which version this story is for)
+
+Optionally:
+- Notes (free-form, for "why" and "constraints")
+- Created_at (timestamp)
+- Sub-stories (list of child ids on the parent)
+- Parent_story (id on each child, linking back)
+
+**The minimum fields are non-negotiable.** Without status, you
+can't tell what is being worked on. Without release, you can't
+compute velocity. Without id, you can't reference a story in
+commits or PRs ("see story X" requires X to be a stable string).
+
+**Per-project storage:** The ledger lives with the project (a
+YAML file in the repo, a spreadsheet in the project folder, a
+database the project owns). **Per-project, not per-user**, so the
+ledger travels with the repo and survives team changes. The
+concrete storage mechanism is a project decision — text file
+in git is the most auditable; kanban tool metadata is the most
+collaborative; spreadsheet is the lowest-friction but doesn't
+survive team changes.
+
+**The "split" operation:** When a 13-pt story is split, the
+sub-stories are first-class entries (not nested under the
+parent). The parent is marked `deferred` with a reference to its
+sub-stories; the children carry a `parent_story` link. This
+matters because queries like "show me all in-progress work in
+release v0.5.0" should return the sub-stories, not the
+already-deferred parent. Nesting hides the real active work.
+
+**Strong story-points anti-patterns:**
+
+- **Spreadsheets owned by one person** — they don't survive a
+  team change. Put the ledger with the project.
+- **Skipping the 13-pt rule** — "it's just 13 pts, I can do it in a
+  week" is exactly when you should split. The 13 is a forcing
+  function, not a measurement.
+- **Tracking velocity per story** — velocity is per-release. A
+  single story doesn't have a velocity; it has a "done on time"
+  or "ran long" flag.
+- **Allowing non-Fibonacci values** — invites false precision. The
+  scale is the scale.
+- **Archiving old stories on each release** — the ledger
+  accumulates. Don't archive; just mark `deferred` or `done`.
+
+### Velocity tracking
+
+**Concept:** Velocity is the ratio of estimated points to actual
+points for a given release. It tells you whether your estimates
+are accurate, whether the team is improving, and whether the
+release is on track.
+
+**Formula:** `velocity = actual_points / estimated_points`. A
+velocity of 1.00 means on target. Less than 1 means under-shipped
+(estimates were too optimistic, or work was deferred). Greater
+than 1 means over-shipped (estimates were too conservative, or
+scope grew).
+
+**The table format:** Each release gets a row in the velocity
+table. The columns are: `RELEASE`, `EST` (estimated points),
+`ACTUAL` (shipped points), `RATIO` (actual/estimated), `DONE/TOTAL`
+(stories done vs planned), `DEF` (stories deferred), and `NOTES`
+(qualitative flag like "on target" / "under" / "over").
+
+**Reading velocity over time:** One release's velocity is noise.
+Three or more releases show a trend. If velocity is consistently
+0.7, the team is under-estimating by ~30% — either tighten
+estimates or accept the new normal. If velocity drifts from 1.0
+to 0.5 over three releases, something is degrading (morale,
+tooling, scope creep). The trend is the signal, not the absolute
+value.
+
+**When to ship:** A release is "on target" if velocity is in the
+0.9–1.1 range. Below 0.5, it's a "shipped but under" — something
+was promised and didn't happen. Above 1.1, it's "over" — scope
+grew or estimates were loose.
+
+**Auto-generating the velocity table:** The table is computable
+from the story ledger filtered by release + the released flag.
+Tools that show velocity in real time (vs. only in retros) let
+the team see drift mid-release, not just at the end. This is
+worth the small effort to set up.
+
+**Strong velocity anti-patterns:**
+
+- **Per-story velocity** — meaningless; stories have a "done on
+  time" or "ran long" flag, not a ratio.
+- **Gaming the number** — "let's just lower our estimates so
+  velocity goes up." Velocity is a signal, not a metric to
+  optimize.
+- **Ignoring the trend** — "we shipped 1.2 this release, the team
+  is crushing it!" may be a sign of under-estimating, not of
+  shipping more.
+- **Velocity without context** — raw ratios without the story
+  list are useless. Always include the per-story breakdown.
+
+### Retrospectives
+
+(See the **Required sections in a release retrospective** block
+above for the file format. This section is the *why* and *how*.)
+
+**Concept:** A retrospective is a structured reflection on a
+release. The point is not to assign blame but to capture what was
+learned so the next release can avoid the same mistakes and
+replicate the same wins.
+
+**When to write the retro:** Right after the release, while
+context is fresh. A post-commit hook (or equivalent automation)
+that triggers on a release tag is a good prompt — it nudges the
+human to write the retro, but the writing is the human's job.
+
+**The "what surprised us" section is the highest-value part.**
+It's where real learning lives. It's the only section that can be
+auto-generated (from commit analysis); the rest requires human
+thought.
+
+**Auto-generating "what surprised us" from git:** Look at commit
+messages between the previous release tag and the current one.
+Cluster by pattern:
+- Bug-fix commits ("fix", "bug", "broken", "crash", "regression")
+  → "more bug fixes than expected; here's what was broken"
+- Documentation commits ("docs", "readme", "comment") → "documentation
+  work was significant; we may be under-documenting day-to-day"
+- Performance commits ("perf", "fast", "slow", "optim", "cache")
+  → "performance was a concern, here's what we found"
+- Dependency commits ("package.json", "requirements", "lib/") → "we
+  updated or consolidated dependencies, here's why"
+- Test commits ("test_", "spec", "add test") → presence or absence
+  is a signal of test discipline
+
+The output is real prose generated from actual history. Not
+boilerplate. **Don't pretend the auto-generation is the whole
+retro** — the "what we'd do differently" and "implications" sections
+still require human thought.
+
+**The retrospective is a public artifact.** Retros are part of
+the project's transparency. Private ones are usually because they
+say unflattering things, which is exactly the wrong reason to keep
+them private. The project learns more from an honest public retro
+than from a sanitized private one.
+
+**Strong retrospective anti-patterns:**
+
+- Generic advice that doesn't reference the actual release ("we
+  should communicate better" — what does that mean for *this*
+  release?)
+- Skipped or stale retros (the value compounds over time; the
+  third retro is more valuable than the first because you can
+  start to see trends)
+- Confessional tone (the retro is for learning, not for
+  blaming)
+- Skipping the "implications" section (the retro is a
+  planning input; if it doesn't feed the next release, it's a
+  diary entry)
+
+### Releases and the planning convention
+
+**Release naming:** Semantic versioning. `vMAJOR.MINOR.PATCH`.
+Pre-release: `vMAJOR.MINOR.PATCH-rc1`. Tags only on a release
+commit.
+
+**Release-by-release structure:** Each release is a release
+candidate first, then a stable tag. `v0.5.0-rc1` ships when the
+work is done; `v0.5.0` ships when the rc has been validated.
+This catches "I thought it was ready" bugs before the stable tag
+is on everyone's machine.
+
+**The 13-pt rule applies to release planning too:** A release
+with 13+ unplanned pts should be split. A release should fit in
+a story-points estimate where 1-3 are small releases, 5-8 are
+typical, 13 means "split me."
+
+**Velocity per release:** Tracked in the retro. The
+"shipped pts / estimated pts" ratio. Velocity is per-release, not
+per-story. A release with velocity 1.0 and 5 stories done is a
+clean release. A release with velocity 0.4 and 13 stories
+deferred is a "we learned we don't know how to scope" release.
+
+### The post-commit hook (or equivalent)
+
+**Pattern:** A small automation that runs on every commit (or
+every release tag) and prompts the human to do the methodology
+work. The point is to make the methodology practice survive
+across sessions and other humans — without a nudge, the retro
+gets forgotten.
+
+**Minimum viable version:** On every commit, check if the commit
+message or latest tag matches a version pattern (`vX.Y.Z`). If so,
+print a non-blocking reminder: "release v0.5.0 detected — run
+the retro command." The reminder is a nudge, not an enforcement.
+
+**The reminder is non-blocking.** It exits 0 regardless. The
+point is the nudge, not the enforcement. Hooks that fail the
+commit on missing metadata are hostile; hooks that print a tip
+are helpful.
+
+**What gets posted:** Just a tip-line in the commit output. No
+file modification, no git push, no global state.
+
+### Methodology anti-patterns (the meta-meta list)
+
+The methodology has its own anti-patterns, separate from the
+doc-base anti-patterns. The big ones:
+
+1. **The methodology is a tool, not a practice.** If the ledger
+   lives in a spreadsheet that only the lead maintains, the
+   methodology is a tool, not a practice. Put it in the repo.
+2. **Skipping the 13-pt rule** — see "Story points" above.
+3. **Writing the retro without data** — "velocity was 0.9, what
+   surprised us was complexity" is filler. "We under-shipped
+   by 10% because the bash 3.2 shim took 2 days" is a retro.
+4. **Auto-generating everything in the retro** — the "what
+   surprised us" can be auto-generated. The "what we'd do
+   differently" and "implications" sections cannot. Don't
+   pretend the auto-generation is the whole retro.
+5. **Tracking velocity per story** — see "Velocity tracking"
+   above.
+6. **Recommitting the ledger on every release** — the ledger
+   accumulates over the life of the project. Don't archive old
+   stories; just mark them `deferred` or `done`.
+7. **Gating the methodology behind a tool** — the practices work
+   without any software — a text file, a spreadsheet, a notebook.
+   The tooling is a convenience, not a prerequisite.
+8. **Skipping the post-release retro** — the retro is what
+   makes release N+1 better than release N. The "we'll do it
+   later" pattern means it never happens.
+
+---
+
 ## Embedded best practices
 
 These are not files, but patterns that should appear throughout the
